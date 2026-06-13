@@ -10,7 +10,7 @@
 // TODO: circular buffer
 char buffer[BUFFER_SIZE]; // default init to zero
 
-char example[] = "I AM SAM I AM SAM SAM I AM\0";
+char example[] = "AAAAABCDEFG\0";
 
 // brute-force search for best match through window
 // by trying every offset and matching as much as possible
@@ -60,13 +60,18 @@ int main()
 
     strcpy(buffer, example);
 
-    int tokens = 0; // track tokens (literal or offset-length pair) outputted
-    int output_bytes = 0; // not necessary 
-    int bitflags = 0; // flags for 8 tokens at a time
+    int tokens = 0; // track tokens (literal or offset-length ref) outputted
 
-    // try every pos 
+    unsigned char bitflags = 0; // flags for 8 tokens at a time
+
+    // stores up to 8 tokens 
+    char output_buffer[8 * REF_SIZE];
+    int op = 0; // output buffer pointer
+
+    char c;
+    // main loop: iterate through current positions 
     int pos = 0;
-    while(buffer[pos] != '\0')
+    while((c = buffer[pos]) != '\0')
     {
         int best_offset, best_length;
 
@@ -74,29 +79,64 @@ int main()
         
         //printf("search pos %d (%d,%d)\n", pos, best_offset, best_length);
 
-        // good match
-        // offset-distance pair is 3 bytes, so we want to save more than that
-        if (best_length > 3) 
+
+        // good match, we want to save more than REF_SIZE bytes
+        if (best_length > REF_SIZE) 
         {
-            printf("output (%d,%d)\n", best_offset, best_length);
+            printf("push ref (%d,%d)\n", best_offset, best_length);
             pos += best_length;
-            output_bytes += 3;
+
+            // write offset and length to output buffer
+            output_buffer[op] = best_offset & 0xFF;
+            output_buffer[op+1] = best_offset >> 8;
+            output_buffer[op+2] = best_length;
+
+            op += 3;
+
+            // mark one flag
+            bitflags |= 1 << (tokens % 8);
+
         }
 
-        else // no match, output literal
+        else // no match, output literal to buffer
         {
-            printf("output '%c'\n", buffer[pos]);
+            printf("push literal '%c'\n", c);
             ++pos;
-            ++output_bytes;
+
+            // write literal to output buffer
+            output_buffer[op++] = c;
+
+            // mark zero flag by doing nothing
         }
     
         ++tokens;
+
+        // if reached 8 tokens, output bitflags and 8 tokens
+        // TODO: handle EOF
+        if (tokens % 8 == 0)
+        {
+            printf("output bitflags %08b\n", bitflags);
+            printf("output bytes ");
+
+            for (int i = 0; i < op; ++i)
+            {
+                printf("%02x ", output_buffer[i]);
+            }
+
+            printf("\n");
+
+            op = 0; // reset output buffer
+            bitflags = 0; // reset bitflags
+        }
     
     }
 
+    // output possible leftover tokens
+    if (tokens % 8 != 0)
+    {
+
+    }
+
     printf("tokens %d\n", tokens);
-    printf("output_bytes %d\n", output_bytes);
-
-
 
 }
