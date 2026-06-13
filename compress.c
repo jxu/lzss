@@ -10,7 +10,8 @@
 // TODO: circular buffer
 char buffer[BUFFER_SIZE]; // default init to zero
 
-char example[] = "AAAAABCDEFG\0";
+char example[] = "AAAAABCDEFGHIJKLMN\0";
+
 
 // brute-force search for best match through window
 // by trying every offset and matching as much as possible
@@ -112,10 +113,10 @@ int main()
         ++tokens;
 
         // if reached 8 tokens, output bitflags and 8 tokens
-        // TODO: handle EOF
         if (tokens % 8 == 0)
         {
             printf("output bitflags %08b\n", bitflags);
+            
             printf("output bytes ");
 
             for (int i = 0; i < op; ++i)
@@ -134,7 +135,16 @@ int main()
     // output possible leftover tokens
     if (tokens % 8 != 0)
     {
+        printf("output bitflags %08b\n", bitflags);
+        
+        printf("output final bytes ");
 
+        for (int i = 0; i < op; ++i)
+        {
+            printf("%02x ", output_buffer[i]);
+        }
+
+        printf("\n");
     }
 
     printf("tokens %d\n", tokens);
