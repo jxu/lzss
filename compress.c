@@ -25,7 +25,7 @@ void print_buffer(void)
 {
     for (int i = 0; i < BUFFER_SIZE; ++i)
     {
-        debug_print("%02x ", buffer[i]);
+        debug_print("%c", buffer[i]);
     }
     debug_print("\n");
 }
@@ -146,7 +146,9 @@ void compress_stream(FILE* input, FILE* output)
 
 
             // write offset and length to output buffer
-            output_buffer[op] = offset & 0xFF;
+            // Idea: write offset as 1 or 2 byte ULEB128
+            // Idea: write length-3 instead for slightly more length
+            output_buffer[op] = offset & 0xFF; // little-endian
             output_buffer[op+1] = offset >> 8;
             output_buffer[op+2] = length;
 
@@ -187,15 +189,17 @@ void compress_stream(FILE* input, FILE* output)
         if (tokens % 8 == 0)
         {
             debug_print("output bitflags %08b\n", bitflags);
+            fputc(bitflags, output);
             
-            debug_print("output bytes ");
+            debug_print("output %d bytes ", op);
 
             for (int i = 0; i < op; ++i)
             {
                 debug_print("%02x ", output_buffer[i]);
             }
-
             debug_print("\n");
+
+            fwrite(output_buffer, op, 1, output);
 
             op = 0; // reset output buffer
             bitflags = 0; // reset bitflags
