@@ -3,7 +3,7 @@
 
 // use buffer for search and lookahead
 // power of 2, should be >= WINDOW_LENGTH + LOOKAHEAD_LENGTH
-#define BUFFER_SIZE 32 
+#define BUFFER_SIZE 64
 #define WINDOW_LENGTH 16
 #define LOOKAHEAD_LENGTH 16
 #define REF_SIZE 3 // size of offset-length pair reference
@@ -13,7 +13,8 @@
 #define debug_print(...) \
             do { if (DEBUG) fprintf(stderr, __VA_ARGS__); } while (0)
 
-// circular buffer, default init to zero
+// TODO: circular buffer, default init to zero
+// for starting off, just assume buffer is big enough to hold all
 char buffer[BUFFER_SIZE]; 
 
 // stores up to 8 tokens 
@@ -80,11 +81,14 @@ void search(int pos, int max_pos, int* offset, int* length)
 
 void compress_stream(FILE* input, FILE* output)
 {
+    int pos = 0;
+
     // read initial LOOKAHEAD_LENGTH bytes (or up to EOF) into buffer
     int count = fread(buffer, 1, LOOKAHEAD_LENGTH, input);
 
     // TODO: implement this
-    int end_pos = count; // lookahead end, right after last byte
+    // lookahead end, right after last byte
+    int end_pos = count; 
 
 
     debug_print("Initial read %d bytes\n", count);
@@ -98,28 +102,53 @@ void compress_stream(FILE* input, FILE* output)
 
     int op = 0; // output buffer pointer
 
-    char c;
 
-    // main loop: iterate through current positions 
-    int pos = 0;
-    while((c = buffer[pos]) != '\0')
+    // main loop: iterate through current position in input
+    // lookahead buffer end maintains ahead of pos, until it stops increasing
+    // when it hits EOF
+    // TODO: pos values can exceed the buffer length
+
+    while(pos < end_pos)
     {
-        int best_offset, best_length;
+        char cur_c = buffer[pos]; // current char
 
-        // TODO: fix
-        search(pos, pos, &best_offset, &best_length);
+
+        // reference pair (offset, length)
+        int offset, length;
+
+        search(pos, end_pos, &offset, &length);
         
 
-        // good match, we want to save more than REF_SIZE bytes
-        if (best_length > REF_SIZE) 
+        // good match length, we want to save more than REF_SIZE bytes
+        if (length > REF_SIZE) 
         {
-            debug_print("push ref (%d,%d)\n", best_offset, best_length);
-            pos += best_length;
+            debug_print("push ref (%d,%d)\n", offset, length);
+            pos += length;
+
+            // read length bytes ahead or until EOF
+            for (int i = 0; i < length; ++i)
+            {
+                int c = fgetc(input);
+                if (c == EOF)
+                {
+                    debug_print("Hit EOF\n");
+                    break;
+                }
+                else 
+                {
+                    debug_print("Read %c\n", c);
+                    buffer[end_pos] = c;
+                    ++end_pos;
+                }
+            }
+
+            debug_print("\n");
+
 
             // write offset and length to output buffer
-            output_buffer[op] = best_offset & 0xFF;
-            output_buffer[op+1] = best_offset >> 8;
-            output_buffer[op+2] = best_length;
+            output_buffer[op] = offset & 0xFF;
+            output_buffer[op+1] = offset >> 8;
+            output_buffer[op+2] = length;
 
             op += 3;
 
@@ -130,11 +159,24 @@ void compress_stream(FILE* input, FILE* output)
 
         else // no match, output literal to buffer
         {
-            debug_print("push literal '%c'\n", c);
+            debug_print("push literal '%c'\n", cur_c);
             ++pos;
+            
+            // read new byte
+            int c = fgetc(input);
+
+            if (c != EOF)
+            {
+                debug_print("read new '%c' to end pos %d\n", c, end_pos);
+                buffer[end_pos++] = c;
+            }
+            else 
+            {
+                debug_print("EOF, not changing end_pos\n");
+            }
 
             // write literal to output buffer
-            output_buffer[op++] = c;
+            output_buffer[op++] = cur_c;
 
             // mark zero flag by doing nothing
         }
@@ -158,7 +200,9 @@ void compress_stream(FILE* input, FILE* output)
             op = 0; // reset output buffer
             bitflags = 0; // reset bitflags
         }
-    
+        
+        // viz buffer
+        print_buffer();
     }
 
     // output possible leftover tokens
