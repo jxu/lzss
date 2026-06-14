@@ -2,9 +2,12 @@
 // gcc -O2 -Wall -Wextra -std=c99 -o compress compress.c 
 // ./compress < sam.txt > sam.lzss 2> compress.log
 
+#include <string.h>
 #include <stdio.h>
 
-// use buffer for search and lookahead
+// TODO: use size_t and better types everywhere
+
+// use same circular buffer for search and lookahead
 // BUFFER_SIZE should be power of 2 >= WINDOW_LENGTH + LOOKAHEAD_LENGTH
 #define BUFFER_SIZE 32
 #define WINDOW_LENGTH 16   // fit into 2 bytes
@@ -16,7 +19,7 @@
 #define debug_print(...) \
             do { if (DEBUG) fprintf(stderr, __VA_ARGS__); } while (0)
 
-// circular buffer, default init to zero
+// circular buffer
 char buffer[BUFFER_SIZE]; 
 
 // stores up to 8 tokens 
@@ -71,6 +74,9 @@ void search(int pos, unsigned max_pos, int* best_offset, int* best_length)
 
 void compress_stream(FILE* input, FILE* output)
 {
+    // clear buffer for new compress
+    memset(buffer, 0, BUFFER_SIZE);
+
     // position index, can be larger than buffer size.
     int pos = 0;
 
