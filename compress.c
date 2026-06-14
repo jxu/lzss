@@ -22,12 +22,13 @@ char buffer[BUFFER_SIZE];
 // stores up to 8 tokens 
 char output_buffer[8 * REF_SIZE];
 
-// debugging buffer visualization
-void print_buffer(void)
+// debugging buffer visualization: prints directly to stderr
+void print_buffer(char* buf, size_t size)
 {
-    for (int i = 0; i < BUFFER_SIZE; ++i)
+    
+    for (size_t i = 0; i < size; ++i)
     {
-        debug_print("%c", buffer[i]);
+        debug_print("%c", buf[i]);
     }
     debug_print("\n");
 }
@@ -80,7 +81,7 @@ void compress_stream(FILE* input, FILE* output)
     int end_pos = count; 
 
     debug_print("Initial read %d bytes\n", count);
-    print_buffer();
+    print_buffer(buffer, BUFFER_SIZE);
 
     int tokens = 0; // track tokens (literal or offset-length ref) outputted
 
@@ -177,11 +178,7 @@ void compress_stream(FILE* input, FILE* output)
             
             debug_print("output %d bytes ", op);
 
-            for (int i = 0; i < op; ++i)
-            {
-                debug_print("%02x ", output_buffer[i]);
-            }
-            debug_print("\n");
+            print_buffer(output_buffer, op);
 
             // write output buffer to output stream
             fwrite(output_buffer, op, 1, output);
@@ -191,25 +188,18 @@ void compress_stream(FILE* input, FILE* output)
         }
         
         // viz buffer
-        print_buffer();
+        print_buffer(buffer, BUFFER_SIZE);
     }
 
     // output any possible leftover tokens
     if (tokens % 8 != 0)
     {
         debug_print("output bitflags %08b\n", bitflags);
-        
         debug_print("output final bytes ");
 
-        for (int i = 0; i < op; ++i)
-        {
-            debug_print("%02x ", output_buffer[i]);
-        }
-
-        debug_print("\n");
+        print_buffer(output_buffer, op);
 
         fwrite(output_buffer, op, 1, output);
-
     }
 
     debug_print("tokens %d\n", tokens);
