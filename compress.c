@@ -1,11 +1,14 @@
-#include <string.h>
+// Example usage
+// gcc -O2 -Wall -Wextra -std=c99 -o compress compress.c 
+// ./compress < sam.txt > sam.lzss 2> compress.log
+
 #include <stdio.h>
 
 // use buffer for search and lookahead
-// power of 2, should be >= WINDOW_LENGTH + LOOKAHEAD_LENGTH
-#define BUFFER_SIZE 64
-#define WINDOW_LENGTH 16
-#define LOOKAHEAD_LENGTH 16
+// BUFFER_SIZE should be power of 2 >= WINDOW_LENGTH + LOOKAHEAD_LENGTH
+#define BUFFER_SIZE 32
+#define WINDOW_LENGTH 16   // fit into 2 bytes
+#define LOOKAHEAD_LENGTH 16 // fit into 1 byte
 #define REF_SIZE 3 // size of offset-length pair reference
 
 #define DEBUG 1 // turn into #ifdef?
@@ -13,8 +16,7 @@
 #define debug_print(...) \
             do { if (DEBUG) fprintf(stderr, __VA_ARGS__); } while (0)
 
-// TODO: circular buffer, default init to zero
-// for starting off, just assume buffer is big enough to hold all
+// circular buffer, default init to zero
 char buffer[BUFFER_SIZE]; 
 
 // stores up to 8 tokens 
@@ -34,83 +36,64 @@ void print_buffer(void)
 // brute-force search for best match through window
 // by trying every offset and matching as much as possible
 // return best offset and length
-void search(int pos, int max_pos, int* offset, int* length)
+void search(int pos, unsigned max_pos, int* best_offset, int* best_length)
 {
-    int best_length = 0;
-    int best_offset = 0;
+    *best_length = 0;
+    *best_offset = 0;
 
-    // try offset of i
-    for (int i = 1; i <= WINDOW_LENGTH; ++i)
+    // try offset
+    for (int offset = 1; offset <= WINDOW_LENGTH; ++offset)
     {
-
-        int back = (pos - i + BUFFER_SIZE) % BUFFER_SIZE;
-        int fwd = pos; // forward match pos
-        int match_length = 0;
+        // these values are based on pos, not mod buffer size
+        unsigned back = pos - offset;
+        unsigned fwd = pos;
+        int length = 0;
 
         // greedily match
-        // in matching, length can be greater than offset
-        // TODO: check if end of buffer?
-        for (; match_length < LOOKAHEAD_LENGTH; ++match_length)
+        // trick: in matching, length can be greater than offset
+        for (; length < LOOKAHEAD_LENGTH && fwd < max_pos; ++length)
         {
-            // end-of-file
-            if (fwd >= max_pos)
+            if (buffer[back % BUFFER_SIZE] != buffer[fwd % BUFFER_SIZE])
                 break;
 
-
-            if (buffer[back] != buffer[fwd]) // combine with for loop
-                break;
-
-
-            back = (back + 1) % BUFFER_SIZE;
-            fwd = (fwd + 1) % BUFFER_SIZE;
+            ++back;
+            ++fwd;
         }
 
-        if (match_length > best_length)
+        if (length > *best_length)
         {
-            best_length = match_length;
-            best_offset = i;
+            *best_length = length;
+            *best_offset = offset;
         }
-
-
     }
-
-    // write out result
-    *offset = best_offset;
-    *length = best_length;
 }
 
 void compress_stream(FILE* input, FILE* output)
 {
+    // position index, can be larger than buffer size.
     int pos = 0;
 
     // read initial LOOKAHEAD_LENGTH bytes (or up to EOF) into buffer
     int count = fread(buffer, 1, LOOKAHEAD_LENGTH, input);
 
-    // TODO: implement this
-    // lookahead end, right after last byte
+    // lookahead end position (pos after last byte)
     int end_pos = count; 
 
-
     debug_print("Initial read %d bytes\n", count);
-
     print_buffer();
 
     int tokens = 0; // track tokens (literal or offset-length ref) outputted
 
     unsigned char bitflags = 0; // flags for 8 tokens at a time
 
-
     int op = 0; // output buffer pointer
-
 
     // main loop: iterate through current position in input
     // lookahead buffer end maintains ahead of pos, until it stops increasing
-    // when it hits EOF
-    // TODO: pos values can exceed the buffer length
-
+    // at pos == end_pos, where end_pos stopped due to EOF
     while(pos < end_pos)
     {
-        char cur_c = buffer[pos]; // current char
+        char cur_c = buffer[pos % BUFFER_SIZE]; // current char
 
 
         // reference pair (offset, length)
@@ -137,7 +120,7 @@ void compress_stream(FILE* input, FILE* output)
                 else 
                 {
                     debug_print("Read %c\n", c);
-                    buffer[end_pos] = c;
+                    buffer[end_pos % BUFFER_SIZE] = c;
                     ++end_pos;
                 }
             }
@@ -170,7 +153,8 @@ void compress_stream(FILE* input, FILE* output)
             if (c != EOF)
             {
                 debug_print("read new '%c' to end pos %d\n", c, end_pos);
-                buffer[end_pos++] = c;
+                buffer[end_pos % BUFFER_SIZE] = c;
+                ++end_pos;
             }
             else 
             {
@@ -199,6 +183,7 @@ void compress_stream(FILE* input, FILE* output)
             }
             debug_print("\n");
 
+            // write output buffer to output stream
             fwrite(output_buffer, op, 1, output);
 
             op = 0; // reset output buffer
@@ -209,7 +194,7 @@ void compress_stream(FILE* input, FILE* output)
         print_buffer();
     }
 
-    // output possible leftover tokens
+    // output any possible leftover tokens
     if (tokens % 8 != 0)
     {
         debug_print("output bitflags %08b\n", bitflags);
@@ -222,6 +207,9 @@ void compress_stream(FILE* input, FILE* output)
         }
 
         debug_print("\n");
+
+        fwrite(output_buffer, op, 1, output);
+
     }
 
     debug_print("tokens %d\n", tokens);
