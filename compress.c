@@ -3,7 +3,7 @@
 
 // use buffer for search and lookahead
 // power of 2, should be >= WINDOW_LENGTH + LOOKAHEAD_LENGTH
-#define BUFFER_SIZE 64 
+#define BUFFER_SIZE 32 
 #define WINDOW_LENGTH 16
 #define LOOKAHEAD_LENGTH 16
 #define REF_SIZE 3 // size of offset-length pair reference
@@ -13,16 +13,27 @@
 #define debug_print(...) \
             do { if (DEBUG) fprintf(stderr, __VA_ARGS__); } while (0)
 
-// TODO: circular buffer
-char buffer[BUFFER_SIZE]; // default init to zero
+// circular buffer, default init to zero
+char buffer[BUFFER_SIZE]; 
 
-char example[] = "AAAAABCDEFGHIJKLMN\0";
+// stores up to 8 tokens 
+char output_buffer[8 * REF_SIZE];
+
+// debugging buffer visualization
+void print_buffer(void)
+{
+    for (int i = 0; i < BUFFER_SIZE; ++i)
+    {
+        debug_print("%02x ", buffer[i]);
+    }
+    debug_print("\n");
+}
 
 
 // brute-force search for best match through window
 // by trying every offset and matching as much as possible
 // return best offset and length
-void search(int pos, int* offset, int* length)
+void search(int pos, int max_pos, int* offset, int* length)
 {
     int best_length = 0;
     int best_offset = 0;
@@ -31,58 +42,72 @@ void search(int pos, int* offset, int* length)
     for (int i = 1; i <= WINDOW_LENGTH; ++i)
     {
 
-        int j = (pos - i + BUFFER_SIZE) % BUFFER_SIZE;
-        int k = pos; // forward match pos
-        int m = 0; // match length
+        int back = (pos - i + BUFFER_SIZE) % BUFFER_SIZE;
+        int fwd = pos; // forward match pos
+        int match_length = 0;
 
+        // greedily match
         // in matching, length can be greater than offset
         // TODO: check if end of buffer?
-        for (; m < LOOKAHEAD_LENGTH; ++m)
+        for (; match_length < LOOKAHEAD_LENGTH; ++match_length)
         {
-            if (buffer[j] != buffer[k]) // combine with for loop
+            // end-of-file
+            if (fwd >= max_pos)
                 break;
 
 
-            j = (j + 1) % BUFFER_SIZE;
-            k = (k + 1) % BUFFER_SIZE;
+            if (buffer[back] != buffer[fwd]) // combine with for loop
+                break;
+
+
+            back = (back + 1) % BUFFER_SIZE;
+            fwd = (fwd + 1) % BUFFER_SIZE;
         }
 
-        if (m > best_length)
+        if (match_length > best_length)
         {
-            best_length = m;
+            best_length = match_length;
             best_offset = i;
         }
 
 
     }
 
+    // write out result
     *offset = best_offset;
     *length = best_length;
 }
 
-
-int main()
+void compress_stream(FILE* input, FILE* output)
 {
-    // for now, load entire file into buffer
+    // read initial LOOKAHEAD_LENGTH bytes (or up to EOF) into buffer
+    int count = fread(buffer, 1, LOOKAHEAD_LENGTH, input);
 
-    strcpy(buffer, example);
+    // TODO: implement this
+    int end_pos = count; // lookahead end, right after last byte
+
+
+    debug_print("Initial read %d bytes\n", count);
+
+    print_buffer();
 
     int tokens = 0; // track tokens (literal or offset-length ref) outputted
 
     unsigned char bitflags = 0; // flags for 8 tokens at a time
 
-    // stores up to 8 tokens 
-    char output_buffer[8 * REF_SIZE];
+
     int op = 0; // output buffer pointer
 
     char c;
+
     // main loop: iterate through current positions 
     int pos = 0;
     while((c = buffer[pos]) != '\0')
     {
         int best_offset, best_length;
 
-        search(pos, &best_offset, &best_length);
+        // TODO: fix
+        search(pos, pos, &best_offset, &best_length);
         
 
         // good match, we want to save more than REF_SIZE bytes
@@ -152,5 +177,10 @@ int main()
     }
 
     debug_print("tokens %d\n", tokens);
+}
+
+int main()
+{
+    compress_stream(stdin, stdout);
 
 }
