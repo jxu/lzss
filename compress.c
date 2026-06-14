@@ -2,10 +2,16 @@
 #include <stdio.h>
 
 // use buffer for search and lookahead
-#define BUFFER_SIZE 64 // power of 2
+// power of 2, should be >= WINDOW_LENGTH + LOOKAHEAD_LENGTH
+#define BUFFER_SIZE 64 
 #define WINDOW_LENGTH 16
 #define LOOKAHEAD_LENGTH 16
 #define REF_SIZE 3 // size of offset-length pair reference
+
+#define DEBUG 1 // turn into #ifdef?
+
+#define debug_print(...) \
+            do { if (DEBUG) fprintf(stderr, __VA_ARGS__); } while (0)
 
 // TODO: circular buffer
 char buffer[BUFFER_SIZE]; // default init to zero
@@ -78,13 +84,11 @@ int main()
 
         search(pos, &best_offset, &best_length);
         
-        //printf("search pos %d (%d,%d)\n", pos, best_offset, best_length);
-
 
         // good match, we want to save more than REF_SIZE bytes
         if (best_length > REF_SIZE) 
         {
-            printf("push ref (%d,%d)\n", best_offset, best_length);
+            debug_print("push ref (%d,%d)\n", best_offset, best_length);
             pos += best_length;
 
             // write offset and length to output buffer
@@ -101,7 +105,7 @@ int main()
 
         else // no match, output literal to buffer
         {
-            printf("push literal '%c'\n", c);
+            debug_print("push literal '%c'\n", c);
             ++pos;
 
             // write literal to output buffer
@@ -115,16 +119,16 @@ int main()
         // if reached 8 tokens, output bitflags and 8 tokens
         if (tokens % 8 == 0)
         {
-            printf("output bitflags %08b\n", bitflags);
+            debug_print("output bitflags %08b\n", bitflags);
             
-            printf("output bytes ");
+            debug_print("output bytes ");
 
             for (int i = 0; i < op; ++i)
             {
-                printf("%02x ", output_buffer[i]);
+                debug_print("%02x ", output_buffer[i]);
             }
 
-            printf("\n");
+            debug_print("\n");
 
             op = 0; // reset output buffer
             bitflags = 0; // reset bitflags
@@ -135,18 +139,18 @@ int main()
     // output possible leftover tokens
     if (tokens % 8 != 0)
     {
-        printf("output bitflags %08b\n", bitflags);
+        debug_print("output bitflags %08b\n", bitflags);
         
-        printf("output final bytes ");
+        debug_print("output final bytes ");
 
         for (int i = 0; i < op; ++i)
         {
-            printf("%02x ", output_buffer[i]);
+            debug_print("%02x ", output_buffer[i]);
         }
 
-        printf("\n");
+        debug_print("\n");
     }
 
-    printf("tokens %d\n", tokens);
+    debug_print("tokens %d\n", tokens);
 
 }
