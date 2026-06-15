@@ -201,8 +201,9 @@ void compress_stream(FILE* input, FILE* output)
     if (tokens % 8 != 0)
     {
         debug_print("output bitflags %08b\n", bitflags);
-        debug_print("output final bytes ");
+        fputc(bitflags, output);
 
+        debug_print("output final bytes ");
         print_buffer(output_buffer, op);
 
         fwrite(output_buffer, op, 1, output);
