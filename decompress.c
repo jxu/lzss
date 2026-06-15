@@ -5,9 +5,9 @@
 #include <string.h>
 #include <stdio.h>
 
-#define BUFFER_SIZE 32 // probably should match compress program
+#define BUFFER_SIZE 65536 // probably should match compress program
 
-#define DEBUG 1 // turn into #ifdef?
+#define DEBUG 0 // turn into #ifdef?
 
 #define debug_print(...) \
             do { if (DEBUG) fprintf(stderr, __VA_ARGS__); } while (0)
@@ -73,7 +73,7 @@ int decompress(FILE* input, FILE* output)
                 else // two byte offset
                 {
                     ob = fgetc(input);
-                    offset = ((oa & 0x80) << 8) | ob;
+                    offset = ((oa & 0x7f) << 8) | ob;
                 }
 
                 int length = fgetc(input);

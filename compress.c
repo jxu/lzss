@@ -9,11 +9,11 @@
 
 // use same circular buffer for search and lookahead
 // BUFFER_SIZE should be power of 2 >= WINDOW_LENGTH + LOOKAHEAD_LENGTH
-#define BUFFER_SIZE 64
-#define WINDOW_LENGTH 32   // fit into 2 bytes
-#define LOOKAHEAD_LENGTH 32 // fit into 1 byte
+#define BUFFER_SIZE 65536
+#define WINDOW_LENGTH 32767    // fit into 15 bits
+#define LOOKAHEAD_LENGTH 255 // fit into 1 byte
 
-#define DEBUG 1 // turn into #ifdef?
+#define DEBUG 0 // turn into #ifdef?
 
 #define debug_print(...) \
             do { if (DEBUG) fprintf(stderr, __VA_ARGS__); } while (0)
