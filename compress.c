@@ -9,9 +9,9 @@
 
 // use same circular buffer for search and lookahead
 // BUFFER_SIZE should be power of 2 >= WINDOW_LENGTH + LOOKAHEAD_LENGTH
-#define BUFFER_SIZE 32
-#define WINDOW_LENGTH 16   // fit into 2 bytes
-#define LOOKAHEAD_LENGTH 16 // fit into 1 byte
+#define BUFFER_SIZE 64
+#define WINDOW_LENGTH 32   // fit into 2 bytes
+#define LOOKAHEAD_LENGTH 32 // fit into 1 byte
 #define REF_SIZE 3 // size of offset-length pair reference
 
 #define DEBUG 1 // turn into #ifdef?
