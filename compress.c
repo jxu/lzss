@@ -28,7 +28,6 @@ char output_buffer[8 * REF_SIZE];
 // debugging buffer visualization: prints directly to stderr
 void print_buffer(char* buf, size_t size)
 {
-    
     for (size_t i = 0; i < size; ++i)
     {
         debug_print("%c", buf[i]);
@@ -39,11 +38,11 @@ void print_buffer(char* buf, size_t size)
 
 // brute-force search for best match through window
 // by trying every offset and matching as much as possible
-// return best offset and length
-void search(int pos, unsigned max_pos, int* best_offset, int* best_length)
+// returns best offset, also returns through pointer best length
+int search(int pos, unsigned max_pos, int* best_length)
 {
+    int best_offset = 0;
     *best_length = 0;
-    *best_offset = 0;
 
     // try offset
     for (int offset = 1; offset <= WINDOW_LENGTH; ++offset)
@@ -67,9 +66,10 @@ void search(int pos, unsigned max_pos, int* best_offset, int* best_length)
         if (length > *best_length)
         {
             *best_length = length;
-            *best_offset = offset;
+            best_offset = offset;
         }
     }
+    return best_offset;
 }
 
 void compress_stream(FILE* input, FILE* output)
@@ -106,10 +106,10 @@ void compress_stream(FILE* input, FILE* output)
         // reference pair (offset, length)
         int offset, length;
 
-        search(pos, end_pos, &offset, &length);
-        
+        offset = search(pos, end_pos, &length);
 
         // good match length, we want to save more than REF_SIZE bytes
+        // TODO: REF_SIZE could be 2 in the future
         if (length > REF_SIZE) 
         {
             debug_print("push ref (%d,%d)\n", offset, length);
