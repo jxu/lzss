@@ -1,4 +1,6 @@
 // Simple decompression program
+// Usage: gcc -O2 -Wall -Wextra -o decompress decompress.c 
+// ./decompress < sam.lzss > sam.new 2> decompress.log
 
 #include <string.h>
 #include <stdio.h>
@@ -50,19 +52,37 @@ int decompress(FILE* input, FILE* output)
         {
             if (bitflags & (1 << i)) // ref pair
             {
-                // expect to read 3 bytes here
-                int ol = fgetc(input);
-                int oh = fgetc(input);
-                int length = fgetc(input);
+                int offset = 0;
 
-                if ((ol == EOF) || (oh == EOF) || (length == EOF))
+                // expect to read 2 or 3 bytes here, depending on offset size
+                // TODO: test these
+                int oa = fgetc(input);
+
+                if (oa == EOF)
                 {
                     fprintf(stderr, "Unexpected EOF");
                     return 1;
                 }
 
-                // reconstruct offset
-                int offset = (oh << 8) | ol;
+                int ob = 0;
+
+                if (oa < 0x80) // one byte offset
+                {
+                    offset = oa;
+                }
+                else // two byte offset
+                {
+                    ob = fgetc(input);
+                    offset = ((oa & 0x80) << 8) | ob;
+                }
+
+                int length = fgetc(input);
+
+                if ((ob == EOF) || (length == EOF))
+                {
+                    fprintf(stderr, "Unexpected EOF");
+                    return 1;
+                }
 
                 debug_print("Read offset %d length %d\n", offset, length);
 

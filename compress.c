@@ -12,7 +12,6 @@
 #define BUFFER_SIZE 64
 #define WINDOW_LENGTH 32   // fit into 2 bytes
 #define LOOKAHEAD_LENGTH 32 // fit into 1 byte
-#define REF_SIZE 3 // size of offset-length pair reference
 
 #define DEBUG 1 // turn into #ifdef?
 
@@ -22,8 +21,8 @@
 // circular buffer
 char buffer[BUFFER_SIZE]; 
 
-// stores up to 8 tokens 
-char output_buffer[8 * REF_SIZE];
+// stores up to 8 tokens of 3 bytes each
+char output_buffer[8 * 3];
 
 // debugging buffer visualization: prints directly to stderr
 void print_buffer(char* buf, size_t size)
@@ -108,14 +107,38 @@ void compress_stream(FILE* input, FILE* output)
 
         offset = search(pos, end_pos, &length);
 
-        // good match length, we want to save more than REF_SIZE bytes
-        // TODO: REF_SIZE could be 2 in the future
-        if (length > REF_SIZE) 
+        // good match length, we want to save more than 3 bytes
+        if (length >= 3) 
         {
             debug_print("push ref (%d,%d)\n", offset, length);
             pos += length;
 
-            // read length bytes ahead or until EOF
+
+
+            debug_print("\n");
+
+            // write offset and length to output buffer, either 2 or 3 bytes
+            // variable-length offset: if 0-127, write 0xxxxxxx
+            // else up to 32767, write 1yyyyyyy xxxxxxxx
+            // DEFLATE uses 1-32768
+            // DEFLATE also uses length-3 instead for slightly more length
+            // TODO: refactor into own small function
+            if (offset < 128) 
+            {
+                output_buffer[op++] = offset;
+            }
+            else 
+            {
+                output_buffer[op++] = 0x80 | (offset >> 8);
+                output_buffer[op++] = offset & 0xFF;
+            }
+
+            output_buffer[op++] = length;
+
+            // mark one flag
+            bitflags |= 1 << (tokens % 8);
+
+            // read length bytes lookahead or until EOF
             for (int i = 0; i < length; ++i)
             {
                 int c = fgetc(input);
@@ -131,21 +154,6 @@ void compress_stream(FILE* input, FILE* output)
                     ++end_pos;
                 }
             }
-
-            debug_print("\n");
-
-
-            // write offset and length to output buffer
-            // Idea: write offset as 1 or 2 byte ULEB128
-            // Idea: write length-3 instead for slightly more length
-            output_buffer[op] = offset & 0xFF; // little-endian
-            output_buffer[op+1] = offset >> 8;
-            output_buffer[op+2] = length;
-
-            op += 3;
-
-            // mark one flag
-            bitflags |= 1 << (tokens % 8);
 
         }
 
