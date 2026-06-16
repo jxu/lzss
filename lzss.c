@@ -113,15 +113,10 @@ void compress_stream(FILE* input, FILE* output)
             {
                 int c = fgetc(input);
                 if (c == EOF)
-                {
-                    debug_print("Hit EOF\n");
                     break;
-                }
-                else 
-                {
-                    buffer[end_pos % BUFFER_SIZE] = c;
-                    ++end_pos;
-                }
+                
+                buffer[end_pos % BUFFER_SIZE] = c;
+                ++end_pos;
             }
 
             debug_print("Bytes read %d\n", bytes_read);
@@ -138,10 +133,6 @@ void compress_stream(FILE* input, FILE* output)
             {
                 buffer[end_pos % BUFFER_SIZE] = c;
                 ++end_pos;
-            }
-            else 
-            {
-                debug_print("EOF, not changing end_pos\n");
             }
 
             // write literal to output buffer
