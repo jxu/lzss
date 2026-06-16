@@ -108,8 +108,8 @@ void compress_stream(FILE* input, FILE* output)
             bitflags |= 1 << (tokens % 8);
 
             // read length bytes lookahead or until EOF
-            int bytes_read = 0;
-            for (int bytes_read = 0; bytes_read < length; ++bytes_read)
+            int bytes_read;
+            for (bytes_read = 0; bytes_read < length; ++bytes_read)
             {
                 int c = fgetc(input);
                 if (c == EOF)
