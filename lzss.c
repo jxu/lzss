@@ -52,12 +52,10 @@ void compress_stream(FILE* input, FILE* output)
 
     // read initial LOOKAHEAD_LENGTH bytes (or up to EOF) into buffer
     int count = fread(buffer, 1, LOOKAHEAD_LENGTH, input);
+    debug_print("Initial read %d bytes\n", count);
 
     // lookahead end position (pos after last byte)
     int end_pos = count; 
-
-    debug_print("Initial read %d bytes\n", count);
-    print_buffer(buffer, BUFFER_SIZE);
 
     int tokens = 0; // track tokens (literal or offset-length ref) outputted
 
@@ -72,21 +70,18 @@ void compress_stream(FILE* input, FILE* output)
     {
         char cur_c = buffer[pos % BUFFER_SIZE]; // current char
 
-
         // reference pair (offset, length)
         int offset, length;
 
         offset = search(pos, end_pos, &length);
 
+        debug_print("Search pos %d, found offset %d length %d\n", 
+            pos, offset, length);
+
         // good match length, enough to save
         if (length >= REF_MAX_SIZE) 
         {
-            debug_print("push ref (%d,%d)\n", offset, length);
             pos += length;
-
-
-
-            debug_print("\n");
 
             // write offset and length to output buffer, either 2 or 3 bytes
             // variable-length offset: if 0-127, write 0xxxxxxx
@@ -106,11 +101,14 @@ void compress_stream(FILE* input, FILE* output)
 
             output_buffer[op++] = length;
 
+            debug_print("push ref (%d,%d)\n", offset, length);
+
             // mark one flag
             bitflags |= 1 << (tokens % 8);
 
             // read length bytes lookahead or until EOF
-            for (int i = 0; i < length; ++i)
+            int bytes_read = 0;
+            for (int bytes_read = 0; bytes_read < length; ++bytes_read)
             {
                 int c = fgetc(input);
                 if (c == EOF)
@@ -120,17 +118,16 @@ void compress_stream(FILE* input, FILE* output)
                 }
                 else 
                 {
-                    debug_print("Read %c\n", c);
                     buffer[end_pos % BUFFER_SIZE] = c;
                     ++end_pos;
                 }
             }
 
+            debug_print("Bytes read %d\n", bytes_read);
         }
 
         else // no match, output literal to buffer
         {
-            debug_print("push literal '%c'\n", cur_c);
             ++pos;
             
             // read new byte
@@ -138,7 +135,6 @@ void compress_stream(FILE* input, FILE* output)
 
             if (c != EOF)
             {
-                debug_print("read new '%c' to end pos %d\n", c, end_pos);
                 buffer[end_pos % BUFFER_SIZE] = c;
                 ++end_pos;
             }
@@ -149,6 +145,7 @@ void compress_stream(FILE* input, FILE* output)
 
             // write literal to output buffer
             output_buffer[op++] = cur_c;
+            debug_print("push literal '%c'\n", cur_c);
 
             // mark zero flag by doing nothing
         }
@@ -158,37 +155,27 @@ void compress_stream(FILE* input, FILE* output)
         // if reached 8 tokens, output bitflags and 8 tokens
         if (tokens % 8 == 0)
         {
-            debug_print("output bitflags %08b\n", bitflags);
             fputc(bitflags, output);
-            
-            debug_print("output %d bytes ", op);
-
-            print_buffer(output_buffer, op);
+            debug_print("output bitflags %08b\n", bitflags);
 
             // write output buffer to output stream
             fwrite(output_buffer, op, 1, output);
+            debug_print("output %d bytes ", op);
 
             op = 0; // reset output buffer
             bitflags = 0; // reset bitflags
         }
-        
-        // viz buffer
-        print_buffer(buffer, BUFFER_SIZE);
     }
 
     // output any possible leftover tokens
     if (tokens % 8 != 0)
     {
-        debug_print("output bitflags %08b\n", bitflags);
         fputc(bitflags, output);
-
-        debug_print("output final bytes ");
-        print_buffer(output_buffer, op);
+        debug_print("output bitflags %08b\n", bitflags);
 
         fwrite(output_buffer, op, 1, output);
+        debug_print("output %d final bytes\n", op);
     }
-
-    debug_print("tokens %d\n", tokens);
 }
 
 // decompress routine
@@ -199,10 +186,11 @@ int decompress(FILE* input, FILE* output)
     memset(buffer, 0, BUFFER_SIZE);
 
     int pos = 0; // abstract buffer position (can be >= BUFFER_SIZE)
-    // TODO: negative ok?
 
     while (1)
     {
+        debug_print("Pos at loop start: %d", pos);
+
         // read bitflags byte
         int c = fgetc(input);
 
@@ -262,19 +250,13 @@ int decompress(FILE* input, FILE* output)
                     buffer[front % BUFFER_SIZE] = b;
                     fputc(b, output);
                     debug_print("output %c\n", b);
-                    debug_print("New back %d front %d\n", back, front);
                     
                     ++front;
                     ++back;
-
-                    print_buffer(buffer, BUFFER_SIZE);
                 }
 
                 // move pos forward
                 pos = front;
-                debug_print("New pos %d\n", pos);
-
-
             }
             else // literal byte (or EOF)
             {
@@ -292,12 +274,7 @@ int decompress(FILE* input, FILE* output)
                 // push to buffer
                 buffer[pos % BUFFER_SIZE] = c;
                 ++pos;
-                print_buffer(buffer, BUFFER_SIZE);
-                debug_print("New pos %d\n", pos);
-
             }
         }
-
     }
-
 }

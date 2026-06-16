@@ -12,21 +12,10 @@
 #define LOOKAHEAD_LENGTH 255 // fit into 1 byte
 #define REF_MAX_SIZE 3  // max size of offset-length ref
 
-#define DEBUG 0 // turn into #ifdef?
+#define DEBUG 1 // turn into #ifdef?
 
 #define debug_print(...) \
             do { if (DEBUG) fprintf(stderr, __VA_ARGS__); } while (0)
-
-
-// debugging buffer visualization: prints directly to stderr
-inline void print_buffer(char* buf, size_t size)
-{
-    for (size_t i = 0; i < size; ++i)
-    {
-        debug_print("%c", buf[i]);
-    }
-    debug_print("\n");
-}
 
 // Main functions
 
