@@ -1,6 +1,5 @@
 #pragma once
 
-#include <string.h>
 #include <stdio.h>
 
 // TODO: use size_t and better types everywhere

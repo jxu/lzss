@@ -1,3 +1,4 @@
+#include <string.h>
 #include "lzss.h"
 
 // circular buffer
