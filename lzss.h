@@ -10,6 +10,7 @@
 #define BUFFER_SIZE 65536
 #define WINDOW_LENGTH 32767    // fit into 15 bits
 #define LOOKAHEAD_LENGTH 255 // fit into 1 byte
+#define REF_MAX_SIZE 3  // max size of offset-length ref
 
 #define DEBUG 0 // turn into #ifdef?
 

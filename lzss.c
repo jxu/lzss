@@ -3,8 +3,8 @@
 // circular buffer
 static char buffer[BUFFER_SIZE]; 
 
-// stores up to 8 tokens of 3 bytes each
-static char output_buffer[8 * 3];
+// stores up to 8 tokens
+static char output_buffer[8 * REF_MAX_SIZE];
 
 // brute-force search for best match through window
 // by trying every offset and matching as much as possible
@@ -78,8 +78,8 @@ void compress_stream(FILE* input, FILE* output)
 
         offset = search(pos, end_pos, &length);
 
-        // good match length, we want to save more than 3 bytes
-        if (length >= 3) 
+        // good match length, enough to save
+        if (length >= REF_MAX_SIZE) 
         {
             debug_print("push ref (%d,%d)\n", offset, length);
             pos += length;
