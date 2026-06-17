@@ -1,7 +1,7 @@
 CC = gcc
-CFLAGS = -O2 -Wall -Wextra -std=c99
+CFLAGS = -O2 -Wall -Wextra -std=gnu99
 
-all: compress decompress
+all: compress decompress tests
 
 lzss.o: lzss.c lzss.h 
 	$(CC) $(CFLAGS) -c $< -o $@
@@ -10,4 +10,7 @@ compress: lzss.o compress.c
 	$(CC) $(CFLAGS) $^ -o $@
 
 decompress: lzss.o decompress.c 
+	$(CC) $(CFLAGS) $^ -o $@
+
+tests: lzss.o tests.c 
 	$(CC) $(CFLAGS) $^ -o $@
