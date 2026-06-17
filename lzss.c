@@ -27,7 +27,8 @@ long pack3(int pos)
 // TODO: better hash function
 int hash(long key)
 {
-    debug_print("hash(0x%lx) = %ld\n", key, key % DICT_SIZE);
+    unsigned long val = (2654435769 * key) >> 15;
+    debug_print("hash(0x%lx) = %ld\n", key, val);
     return key % DICT_SIZE;
 }
 
