@@ -27,7 +27,7 @@ long pack3(int pos)
 // TODO: better hash function
 int hash(long key)
 {
-    debug_print("Hashing key 0x%lx\n", key);
+    debug_print("hash(0x%lx) = %ld\n", key, key % DICT_SIZE);
     return key % DICT_SIZE;
 }
 
@@ -74,7 +74,6 @@ int dict_search(int pos, int max_pos, int* best_length)
             break;
         }
 
-        debug_print("Search start pos %d\n", searchpos);
 
         // offset computed from pos
         int offset = pos - searchpos;
@@ -85,9 +84,18 @@ int dict_search(int pos, int max_pos, int* best_length)
         int fwd = pos;
         int length = 0;
 
+        debug_print("Searchpos %d\n", searchpos);
+
+
         // skip over too old entries that are "lazy deleted"
         if (offset > WINDOW_LENGTH)
+        {
+            debug_print("Skip offset %d\n", offset);
             continue;
+
+        }
+
+
 
         // greedily match
         // trick: in matching, length can be greater than offset
@@ -107,7 +115,7 @@ int dict_search(int pos, int max_pos, int* best_length)
         }
 
         // move to next
-        searchpos = next_pos[searchpos];
+        searchpos = next_pos[searchpos % BUFFER_SIZE];
     }
 
     assert(!(best_offset == 0 && *best_length > 0));
@@ -163,6 +171,8 @@ void compress_stream(FILE* input, FILE* output)
 
         // reference pair (offset, length)
         int offset, length;
+
+        // TODO: don't hash twice
 
         offset = dict_search(pos, end_pos, &length);
 
@@ -260,6 +270,7 @@ void compress_stream(FILE* input, FILE* output)
 
 
 
+        debug_print("\n"); // end loop
     }
 
     // output any possible leftover tokens
@@ -271,6 +282,7 @@ void compress_stream(FILE* input, FILE* output)
         fwrite(output_buffer, op, 1, output);
         debug_print("output %d final bytes\n", op);
     }
+
 }
 
 // decompress routine
