@@ -16,7 +16,7 @@ static int next_pos[BUFFER_SIZE];
 // TODO: cleaner?
 long pack3(int pos)
 {
-    int a = buffer[pos];
+    int a = buffer[pos % BUFFER_SIZE];
     int b = buffer[(pos+1) % BUFFER_SIZE];
     int c = buffer[(pos+2) % BUFFER_SIZE];
     return a | (b << 8) | (c << 16);
@@ -36,7 +36,7 @@ void dict_insert(long key, int pos)
     int bucket = hash(key) % DICT_SIZE;
     int old_front = hash_table[bucket];
     hash_table[bucket] = pos;
-    next_pos[pos] = old_front;
+    next_pos[pos % BUFFER_SIZE] = old_front;
 
     debug_print("insert hash_table[%d] = %d, next[%d] = %d\n",
         bucket, pos, pos, old_front);
