@@ -1,8 +1,12 @@
+// Tests for compress/decompress functions
+
 #include <assert.h>
 #include <string.h>
 #include <stdio.h>
 #include "lzss.h"
 
+#define CHECK(cond) if (!(cond)) \
+    fprintf(stderr, "%s:%d: FAIL %s\n", __FILE__, __LINE__, #cond);
 
 
 int main()
@@ -17,7 +21,7 @@ int main()
 
     compress_stream(infile, outfile);
 
-    assert(ftell(outfile) == 3);
+    CHECK(ftell(outfile) == 3);
 
     // must close or flush stream to write
     fclose(infile);
@@ -29,5 +33,5 @@ int main()
     }
     printf("\n");
 
-    assert(memcmp(outbuf, expected, sizeof(expected)) == 0);
+    CHECK(memcmp(outbuf, expected, sizeof(expected)) == 0);
 }
