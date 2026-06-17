@@ -8,8 +8,7 @@
 #define CHECK(cond) if (!(cond)) \
     fprintf(stderr, "%s:%d: FAIL %s\n", __FILE__, __LINE__, #cond);
 
-
-int main()
+void test_compress(void)
 {
     unsigned char inbuf[8] = {0};
     unsigned char outbuf[8];
@@ -34,4 +33,12 @@ int main()
     printf("\n");
 
     CHECK(memcmp(outbuf, expected, sizeof(expected)) == 0);
+
+    printf("Compress tests passed\n");
+}
+
+
+int main()
+{
+    test_compress();
 }
