@@ -1,11 +1,51 @@
 #include <string.h>
 #include "lzss.h"
 
-// circular buffer
-static char buffer[BUFFER_SIZE]; 
+// main circular buffer, storing search window and lookahead window
+// mod buffer size
+static unsigned char buffer[BUFFER_SIZE]; 
 
-// stores up to 8 tokens
-static char output_buffer[8 * REF_MAX_SIZE];
+// search dictionary related tables
+static int hash_table[DICT_SIZE];
+
+// stores next pos in chain, indexes by pos mod buffer
+// all pos entries are distinct
+// (match length is not stored and instead computed)
+static int next_pos[BUFFER_SIZE];
+
+// TODO: cleaner?
+long pack3(int pos)
+{
+    int a = buffer[pos];
+    int b = buffer[(pos+1) % BUFFER_SIZE];
+    int c = buffer[(pos+2) % BUFFER_SIZE];
+    return a | (b << 8) | (c << 16);
+}
+
+// TODO: better hash function
+int hash(long key)
+{
+    return key % DICT_SIZE;
+}
+
+
+
+// insert key-pos pair into the front of the chain
+void dict_insert(long key, int pos)
+{
+    int bucket = hash(key) % DICT_SIZE;
+    int old_front = hash_table[bucket];
+    hash_table[bucket] = pos;
+    next_pos[pos] = old_front;
+
+    debug_print("insert hash_table[%d] = %d, next[%d] = %d\n",
+        bucket, pos, pos, old_front);
+}
+
+void dict_delete(long key, int pos);
+
+// TODO: search needs to check the match. this comes with computing length
+
 
 // brute-force search for best match through window
 // by trying every offset and matching as much as possible
@@ -45,6 +85,17 @@ int search(int pos, unsigned max_pos, int* best_length)
 
 void compress_stream(FILE* input, FILE* output)
 {
+    // stores up to 8 tokens
+    char output_buffer[8 * REF_MAX_SIZE];
+
+    // TODO: clear all tables!
+    for (int i = 0; i < DICT_SIZE; ++i)
+        hash_table[i] = NULL_POS;
+
+    for (int i = 0; i < BUFFER_SIZE; ++i)
+        next_pos[i] = NULL_POS;
+
+
     // clear buffer for new compress
     memset(buffer, 0, BUFFER_SIZE);
 
@@ -75,6 +126,15 @@ void compress_stream(FILE* input, FILE* output)
         int offset, length;
 
         offset = search(pos, end_pos, &length);
+
+        // insert new key if possible
+        if (end_pos - pos >= KEY_LENGTH)
+        {
+            dict_insert(pack3(pos), pos);
+
+        }
+
+        // TODO: delete old key at the front of the search window
 
         debug_print("Search pos %d, found offset %d length %d\n", 
             pos, offset, length);
@@ -126,7 +186,7 @@ void compress_stream(FILE* input, FILE* output)
         {
             ++pos;
             
-            // read new byte
+            // read new byte and store at end_pos
             int c = fgetc(input);
 
             if (c != EOF)
