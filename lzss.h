@@ -22,9 +22,14 @@
 #define debug_print(...) \
             do { if (DEBUG) fprintf(stderr, __VA_ARGS__); } while (0)
 
+// dict functions
+void dict_reset(void);
+void dict_insert(long key, int pos);
+void dict_delete(long key, int pos);
+int dict_search(int pos, int max_pos, int* best_length);
+
 // Main functions
 
-int search(int pos, unsigned max_pos, int* best_length);
 void compress_stream(FILE* input, FILE* output);
 
 int decompress(FILE* input, FILE* output);

@@ -1,5 +1,5 @@
 CC = gcc
-CFLAGS = -O2 -Wall -Wextra -std=gnu99
+CFLAGS = -O2 -Wall -Wextra -g
 
 all: compress decompress tests
 

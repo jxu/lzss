@@ -1,4 +1,5 @@
 #include <string.h>
+#include <assert.h>
 #include "lzss.h"
 
 // main circular buffer, storing search window and lookahead window
@@ -16,6 +17,7 @@ static int next_pos[BUFFER_SIZE];
 // TODO: cleaner?
 long pack3(int pos)
 {
+
     int a = buffer[pos % BUFFER_SIZE];
     int b = buffer[(pos+1) % BUFFER_SIZE];
     int c = buffer[(pos+2) % BUFFER_SIZE];
@@ -25,6 +27,7 @@ long pack3(int pos)
 // TODO: better hash function
 int hash(long key)
 {
+    debug_print("Hashing key 0x%lx\n", key);
     return key % DICT_SIZE;
 }
 
@@ -38,30 +41,53 @@ void dict_insert(long key, int pos)
     hash_table[bucket] = pos;
     next_pos[pos % BUFFER_SIZE] = old_front;
 
-    debug_print("insert hash_table[%d] = %d, next[%d] = %d\n",
-        bucket, pos, pos, old_front);
+    debug_print("insert hash_table[%d] = %d \n",
+        bucket, pos);
 }
 
-void dict_delete(long key, int pos);
 
 // TODO: search needs to check the match. this comes with computing length
 
-
-// brute-force search for best match through window
-// by trying every offset and matching as much as possible
 // returns best offset, also returns through pointer best length
-int search(int pos, unsigned max_pos, int* best_length)
+int dict_search(int pos, int max_pos, int* best_length)
 {
     int best_offset = 0;
     *best_length = 0;
 
-    // try offset
-    for (int offset = 1; offset <= WINDOW_LENGTH; ++offset)
+    // if too close to the end, abort search
+    if (max_pos - pos < KEY_LENGTH)
     {
+        return 0;
+    }
+
+    long key = pack3(pos);
+
+    int bucket = hash(key) % DICT_SIZE;
+    int searchpos = hash_table[bucket]; // begin search
+
+    // iterate through chain, searching for matches
+    for (int i = 0; i < MAX_CHAIN_LENGTH; ++i)
+    {
+        // reached end of chain
+        if (searchpos == NULL_POS) 
+        {
+            break;
+        }
+
+        debug_print("Search start pos %d\n", searchpos);
+
+        // offset computed from pos
+        int offset = pos - searchpos;
+
+
         // these values are based on pos, not mod buffer size
-        unsigned back = pos - offset;
-        unsigned fwd = pos;
+        int back = pos - offset;
+        int fwd = pos;
         int length = 0;
+
+        // skip over too old entries that are "lazy deleted"
+        if (offset > WINDOW_LENGTH)
+            continue;
 
         // greedily match
         // trick: in matching, length can be greater than offset
@@ -79,8 +105,24 @@ int search(int pos, unsigned max_pos, int* best_length)
             *best_length = length;
             best_offset = offset;
         }
+
+        // move to next
+        searchpos = next_pos[searchpos];
     }
+
+    assert(!(best_offset == 0 && *best_length > 0));
+
     return best_offset;
+}
+
+void dict_reset(void)
+{
+    for (int i = 0; i < DICT_SIZE; ++i)
+        hash_table[i] = NULL_POS;
+
+    for (int i = 0; i < BUFFER_SIZE; ++i)
+        next_pos[i] = NULL_POS;
+
 }
 
 void compress_stream(FILE* input, FILE* output)
@@ -89,11 +131,7 @@ void compress_stream(FILE* input, FILE* output)
     char output_buffer[8 * REF_MAX_SIZE];
 
     // TODO: clear all tables!
-    for (int i = 0; i < DICT_SIZE; ++i)
-        hash_table[i] = NULL_POS;
-
-    for (int i = 0; i < BUFFER_SIZE; ++i)
-        next_pos[i] = NULL_POS;
+    dict_reset();
 
 
     // clear buffer for new compress
@@ -122,11 +160,15 @@ void compress_stream(FILE* input, FILE* output)
     {
         char cur_c = buffer[pos % BUFFER_SIZE]; // current char
 
+
         // reference pair (offset, length)
         int offset, length;
 
-        offset = search(pos, end_pos, &length);
+        offset = dict_search(pos, end_pos, &length);
 
+        debug_print("Search pos %d, found offset %d length %d\n", 
+            pos, offset, length);
+    
         // insert new key if possible
         if (end_pos - pos >= KEY_LENGTH)
         {
@@ -134,11 +176,9 @@ void compress_stream(FILE* input, FILE* output)
 
         }
 
-        // TODO: delete old key at the front of the search window
+        // Lazy delete: don't bother deleting and just skip over invalid
 
-        debug_print("Search pos %d, found offset %d length %d\n", 
-            pos, offset, length);
-
+        // starting here, pos is modified
         // good match length, enough to save
         if (length >= REF_MAX_SIZE) 
         {
@@ -212,11 +252,14 @@ void compress_stream(FILE* input, FILE* output)
 
             // write output buffer to output stream
             fwrite(output_buffer, op, 1, output);
-            debug_print("output %d bytes ", op);
+            debug_print("output %d bytes\n", op);
 
             op = 0; // reset output buffer
             bitflags = 0; // reset bitflags
         }
+
+
+
     }
 
     // output any possible leftover tokens
