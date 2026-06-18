@@ -2,5 +2,5 @@
 
 int main()
 {
-    compress_stream(stdin, stdout);
+    compress(stdin, stdout);
 }
