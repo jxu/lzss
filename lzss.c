@@ -24,10 +24,10 @@ long pack3(int pos)
     return (a << 16) | (b << 8) | c;
 }
 
-// Knuth multiplicative hash, mod 2 ** HASH_BITS
+// Knuth multiplicative hash, mod 2 ** DICT_BITS
 unsigned int knuth_hash(unsigned int key)
 {
-    return (2654435769u * key) >> (32 - HASH_BITS);
+    return (2654435769u * key) >> (32 - DICT_BITS);
 }
 
 // insert key-pos pair into the front of the chain
@@ -38,6 +38,7 @@ void dict_insert(unsigned int hash, int pos)
     assert(bucket < BUFFER_SIZE);
 
     int old_front = search_dict[bucket];
+    assert(old_front < pos); // strictly decreasing
     search_dict[bucket] = pos;
     prev_pos[pos % BUFFER_SIZE] = old_front;
 
@@ -158,11 +159,11 @@ void compress_stream(FILE* input, FILE* output)
         char cur_c = buffer[pos % BUFFER_SIZE]; // current char
 
         // reference pair (offset, length)
-        int offset, length = 0;
         int hash = 0;
+        int offset, length = 0;
 
         // Search if not too close to the end
-        if (end_pos - pos >= KEY_LENGTH)
+        if (pos + KEY_LENGTH < end_pos)
         {
             hash = knuth_hash(pack3(pos));
             offset = dict_search(hash, pos, end_pos, &length);
@@ -181,14 +182,15 @@ void compress_stream(FILE* input, FILE* output)
         // good match length, enough to save
         if (length >= REF_MAX_SIZE) 
         {
-            // insert new keys and delete old keys for length bytes
+            // insert new keys up to but not including length bytes ahead
             for (int i = 0; i < length; ++i)
             {
-                if (end_pos - pos >= KEY_LENGTH)
+
+                if (pos + KEY_LENGTH < end_pos)
                 {
+                    hash = knuth_hash(pack3(pos));
                     dict_insert(hash, pos);
                 }
-
                 ++pos;
             }
 
@@ -227,19 +229,11 @@ void compress_stream(FILE* input, FILE* output)
                 ++end_pos;
             }
 
-            assert(pos <= end_pos);
-
             debug_print("Bytes read %d\n", bytes_read);
         }
 
         else // no match, output literal to buffer
         {
-            // insert new key if possible
-            if (end_pos - pos >= KEY_LENGTH)
-            {
-                dict_insert(hash, pos);
-            }
-            
             // read new byte and store at end_pos
             int c = fgetc(input);
 
@@ -253,9 +247,15 @@ void compress_stream(FILE* input, FILE* output)
             output_buffer[op++] = cur_c;
             debug_print("push literal '%c'\n", cur_c);
 
-            // mark zero flag by doing nothing
+            // insert this pos's key
+            if (pos + KEY_LENGTH < end_pos)
+            {
+                dict_insert(hash, pos);
+            }
 
-            ++pos;
+            // mark zero flag by doing nothing
+            
+            ++pos;  
         }
     
         ++tokens;
