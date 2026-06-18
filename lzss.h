@@ -24,10 +24,17 @@ static_assert(BUFFER_SIZE >= WINDOW_LENGTH + LOOKAHEAD_LENGTH,
 #define MAX_CHAIN_LENGTH 64
 #define NULL_POS (size_t)(-1)
 
-#define DEBUG 0 // turn into #ifdef?
+// Define -DDEBUG in compilation to turn on debug printing
+// We do it this way so the print statements are always visible to compiler
+// https://stackoverflow.com/a/1644898
+#ifdef DEBUG 
+    #define DEBUG_PRINT 1
+#else
+    #define DEBUG_PRINT 0
+#endif
 
 #define debug_print(...) \
-            do { if (DEBUG) fprintf(stderr, __VA_ARGS__); } while (0)
+            do { if (DEBUG_PRINT) fprintf(stderr, __VA_ARGS__); } while (0)
 
 // dict functions
 uint32_t knuth_hash(uint32_t key);

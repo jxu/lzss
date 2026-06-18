@@ -1,7 +1,13 @@
 CC = gcc
 CFLAGS = -O2 -Wall -Wextra -g
 
-all: compress decompress tests
+release: executable
+
+# because not put in a separate dir, may require make -B to force
+debug: CFLAGS += -DDEBUG
+debug: executable
+
+executable: compress decompress tests
 
 lzss.o: lzss.c lzss.h 
 	$(CC) $(CFLAGS) -c $< -o $@
