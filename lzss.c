@@ -2,15 +2,14 @@
 #include <assert.h>
 #include "lzss.h"
 
-// main circular buffer, storing search window and lookahead window
-// mod buffer size
+// Main circular buffer, storing search window and lookahead window
+// all positions are indexed mod buffer size
 static unsigned char buffer[BUFFER_SIZE]; 
 
-// search dictionary related tables
-static int hash_table[DICT_SIZE];
+// Search hash table "dictionary" data structure
+static int search_dict[DICT_SIZE];
 
-// stores next pos in chain, indexes by pos mod buffer
-// all pos entries are distinct
+// stores previous pos in chain, indexes by current pos
 // (match length is not stored and instead computed)
 static int prev_pos[BUFFER_SIZE];
 
@@ -31,29 +30,20 @@ int hash(long key)
     unsigned long val = ((2654435769 * key) >> 15) % DICT_SIZE;
     debug_print("hash(0x%lx) = %ld\n", key, val);
 
-
-
     return val % DICT_SIZE;
 }
-
-
 
 // insert key-pos pair into the front of the chain
 void dict_insert(long key, int pos)
 {
     int bucket = hash(key) % DICT_SIZE;
-    int old_front = hash_table[bucket];
-    hash_table[bucket] = pos;
+    int old_front = search_dict[bucket];
+    search_dict[bucket] = pos;
     prev_pos[pos % BUFFER_SIZE] = old_front;
 
     debug_print("insert hash_table[%d] = %d, next[%d] = %d\n",
         bucket, pos, pos % BUFFER_SIZE, old_front);
-
-
 }
-
-
-// TODO: search needs to check the match. this comes with computing length
 
 // returns best offset, also returns through pointer best length
 int dict_search(int pos, int max_pos, int* best_length)
@@ -70,8 +60,7 @@ int dict_search(int pos, int max_pos, int* best_length)
     long key = pack3(pos);
 
     int bucket = hash(key) % DICT_SIZE;
-    int searchpos = hash_table[bucket]; // begin search
-
+    int searchpos = search_dict[bucket]; // begin search
 
     // iterate through chain, searching for matches
     for (int i = 0; i < MAX_CHAIN_LENGTH; ++i)
@@ -83,29 +72,18 @@ int dict_search(int pos, int max_pos, int* best_length)
             break;
         }
 
-
-        // offset computed from pos
+        // all pos values not mod buffer
         int offset = pos - searchpos;
-
-
-        // these values are based on pos, not mod buffer size
         int back = pos - offset;
         int fwd = pos;
         int length = 0;
 
-
-
-
-
-        // break when monotonically decreasing chain falls out of window
+        // break when chain decreasing position falls out of window
         if (offset > WINDOW_LENGTH)
         {
             debug_print("Break on offset %d\n", offset);
             break;
-
         }
-
-
 
         // greedily match
         // trick: in matching, length can be greater than offset
@@ -139,7 +117,7 @@ int dict_search(int pos, int max_pos, int* best_length)
 void dict_reset(void)
 {
     for (int i = 0; i < DICT_SIZE; ++i)
-        hash_table[i] = NULL_POS;
+        search_dict[i] = NULL_POS;
 
     for (int i = 0; i < BUFFER_SIZE; ++i)
     {
@@ -153,11 +131,8 @@ void compress_stream(FILE* input, FILE* output)
     // stores up to 8 tokens
     char output_buffer[8 * REF_MAX_SIZE];
 
-    // TODO: clear all tables!
+    // Clear search window and buffers
     dict_reset();
-
-
-    // clear buffer for new compress
     memset(buffer, 0, BUFFER_SIZE);
 
     // position index, can be larger than buffer size.
@@ -171,9 +146,7 @@ void compress_stream(FILE* input, FILE* output)
     int end_pos = count; 
 
     int tokens = 0; // track tokens (literal or offset-length ref) outputted
-
     unsigned char bitflags = 0; // flags for 8 tokens at a time
-
     int op = 0; // output buffer pointer
 
     // main loop: iterate through current position in input
@@ -187,14 +160,13 @@ void compress_stream(FILE* input, FILE* output)
 
         debug_print("Hash table\n");
         for (int i = 0; i < DICT_SIZE; ++i)
-            debug_print("%d ", hash_table[i]);
+            debug_print("%d ", search_dict[i]);
         debug_print("\n");
 
         debug_print("Next table\n");
         for (int i = 0; i < BUFFER_SIZE; ++i)
             debug_print("%02d ", prev_pos[i]);
         debug_print("\n");
-
 
         // reference pair (offset, length)
         int offset, length;
@@ -211,15 +183,12 @@ void compress_stream(FILE* input, FILE* output)
         // good match length, enough to save
         if (length >= REF_MAX_SIZE) 
         {
-
             // insert new keys and delete old keys for length bytes
             for (int i = 0; i < length; ++i)
             {
-
                 if (end_pos - pos >= KEY_LENGTH)
                 {
                     dict_insert(pack3(pos), pos);
-
                 }
 
                 ++pos;
@@ -271,7 +240,6 @@ void compress_stream(FILE* input, FILE* output)
             if (end_pos - pos >= KEY_LENGTH)
             {
                 dict_insert(pack3(pos), pos);
-
             }
             
             // read new byte and store at end_pos
@@ -308,8 +276,6 @@ void compress_stream(FILE* input, FILE* output)
             bitflags = 0; // reset bitflags
         }
 
-
-
         debug_print("\n"); // end loop
     }
 
@@ -322,7 +288,6 @@ void compress_stream(FILE* input, FILE* output)
         fwrite(output_buffer, op, 1, output);
         debug_print("output %d final bytes\n", op);
     }
-
 }
 
 // decompress routine
@@ -332,7 +297,7 @@ int decompress(FILE* input, FILE* output)
     // reset buffer to initial zero state
     memset(buffer, 0, BUFFER_SIZE);
 
-    int pos = 0; // abstract buffer position (can be >= BUFFER_SIZE)
+    int pos = 0; // abstract buffer position
 
     while (1)
     {
