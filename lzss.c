@@ -12,10 +12,8 @@ static int hash_table[DICT_SIZE];
 // stores next pos in chain, indexes by pos mod buffer
 // all pos entries are distinct
 // (match length is not stored and instead computed)
-static int next_pos[BUFFER_SIZE];
-
-// to make deletion constant time
 static int prev_pos[BUFFER_SIZE];
+
 
 // TODO: cleaner?
 long pack3(int pos)
@@ -46,51 +44,14 @@ void dict_insert(long key, int pos)
     int bucket = hash(key) % DICT_SIZE;
     int old_front = hash_table[bucket];
     hash_table[bucket] = pos;
-    next_pos[pos % BUFFER_SIZE] = old_front;
+    prev_pos[pos % BUFFER_SIZE] = old_front;
 
     debug_print("insert hash_table[%d] = %d, next[%d] = %d\n",
         bucket, pos, pos % BUFFER_SIZE, old_front);
 
-    if (old_front != NULL_POS)
-    {
-        prev_pos[old_front % BUFFER_SIZE] = pos;
-        debug_print("prev[%d] = %d\n", old_front % BUFFER_SIZE, pos);
-    }
-
 
 }
 
-// delete directly by pos table
-void dict_delete(int pos)
-{
-
-    assert(pos >= 0);
-    assert(pos != NULL_POS);
-
-    debug_print("Delete %d\n", pos);
-
-
-    int prev = prev_pos[pos % BUFFER_SIZE];
-    int next = next_pos[pos % BUFFER_SIZE];
-
-    if (prev != NULL_POS)
-    {
-        assert(prev % BUFFER_SIZE != next);
-        next_pos[prev % BUFFER_SIZE] = next;
-        debug_print("set next[%d] = %d\n", prev % BUFFER_SIZE, next);
-
-    }
-
-    if (next != NULL_POS)
-    {
-        assert(next % BUFFER_SIZE != prev);
-
-        prev_pos[next % BUFFER_SIZE] = prev;
-        debug_print("set prev[%d] = %d\n", next % BUFFER_SIZE, prev);
-
-    }
-
-}
 
 // TODO: search needs to check the match. this comes with computing length
 
@@ -166,8 +127,8 @@ int dict_search(int pos, int max_pos, int* best_length)
         }
 
         // move to next
-        assert(searchpos != next_pos[searchpos % BUFFER_SIZE]);
-        searchpos = next_pos[searchpos % BUFFER_SIZE];
+        assert(searchpos != prev_pos[searchpos % BUFFER_SIZE]);
+        searchpos = prev_pos[searchpos % BUFFER_SIZE];
     }
 
     assert(!(best_offset == 0 && *best_length > 0));
@@ -182,7 +143,6 @@ void dict_reset(void)
 
     for (int i = 0; i < BUFFER_SIZE; ++i)
     {
-        next_pos[i] = NULL_POS;
         prev_pos[i] = NULL_POS;
     }
 
@@ -230,10 +190,7 @@ void compress_stream(FILE* input, FILE* output)
             debug_print("%d ", hash_table[i]);
         debug_print("\n");
 
-        debug_print("Next and prev table\n");
-        for (int i = 0; i < BUFFER_SIZE; ++i)
-            debug_print("%02d ", next_pos[i]);
-        debug_print("\n");
+        debug_print("Next table\n");
         for (int i = 0; i < BUFFER_SIZE; ++i)
             debug_print("%02d ", prev_pos[i]);
         debug_print("\n");
@@ -263,14 +220,6 @@ void compress_stream(FILE* input, FILE* output)
                 {
                     dict_insert(pack3(pos), pos);
 
-                }
-
-
-                // delete old key if fell out of search window
-                int back = pos - WINDOW_LENGTH;
-                if (back >= 0)
-                {
-                    //dict_delete(back);
                 }
 
                 ++pos;
@@ -340,16 +289,7 @@ void compress_stream(FILE* input, FILE* output)
 
             // mark zero flag by doing nothing
 
-            // delete old key if fell out of search window
-            int back = pos - WINDOW_LENGTH;
-            if (back >= 0)
-            {
-                //dict_delete(back);
-            }
-
-
             ++pos;
-
         }
     
         ++tokens;
