@@ -44,7 +44,7 @@ void test_compress(void)
     FILE* infile = fmemopen(inbuf, sizeof(inbuf), "r");
     FILE* outfile = fmemopen(outbuf, sizeof(outbuf), "w");
 
-    compress_stream(infile, outfile);
+    compress(infile, outfile);
 
     CHECK(ftell(outfile) == sizeof(expected));
 

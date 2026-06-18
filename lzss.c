@@ -125,7 +125,7 @@ void dict_reset(void)
         prev_pos[i] = NULL_POS;
 }
 
-void compress_stream(FILE* input, FILE* output)
+void compress(FILE* input, FILE* output)
 {
     // stores up to 8 tokens
     uint8_t output_buffer[8 * REF_MAX_SIZE];
