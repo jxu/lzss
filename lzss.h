@@ -14,19 +14,20 @@
 // Dictionary related constants
 #define KEY_LENGTH 3  // bytes to hash
 #define DICT_SIZE 32768
+#define HASH_BITS 15 // 2 ** HASH_BITS == DICT_SIZE
 #define MAX_CHAIN_LENGTH 64
 #define NULL_POS -1
 
-#define DEBUG 0 // turn into #ifdef?
+#define DEBUG 1 // turn into #ifdef?
 
 #define debug_print(...) \
             do { if (DEBUG) fprintf(stderr, __VA_ARGS__); } while (0)
 
 // dict functions
-int hash(long key);
+unsigned int knuth_hash(unsigned int key);
 void dict_reset(void);
-void dict_insert(long key, int pos);
-int dict_search(int pos, int max_pos, int* best_length);
+void dict_insert(unsigned int hash, int pos);
+int dict_search(unsigned int hash, int pos, int max_pos, int* best_length);
 
 // Main functions
 

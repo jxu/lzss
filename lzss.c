@@ -24,19 +24,19 @@ long pack3(int pos)
     return (a << 16) | (b << 8) | c;
 }
 
-// TODO: better hash function
-int hash(long key)
+// Knuth multiplicative hash, mod 2 ** HASH_BITS
+unsigned int knuth_hash(unsigned int key)
 {
-    unsigned long val = ((2654435769 * key) >> 15) % DICT_SIZE;
-    debug_print("hash(0x%lx) = %ld\n", key, val);
-
-    return val % DICT_SIZE;
+    return (2654435769u * key) >> (32 - HASH_BITS);
 }
 
 // insert key-pos pair into the front of the chain
-void dict_insert(long key, int pos)
+// use Knuth key hash directly
+void dict_insert(unsigned int hash, int pos)
 {
-    int bucket = hash(key) % DICT_SIZE;
+    int bucket = hash; 
+    assert(bucket < BUFFER_SIZE);
+
     int old_front = search_dict[bucket];
     search_dict[bucket] = pos;
     prev_pos[pos % BUFFER_SIZE] = old_front;
@@ -46,7 +46,7 @@ void dict_insert(long key, int pos)
 }
 
 // returns best offset, also returns through pointer best length
-int dict_search(int pos, int max_pos, int* best_length)
+int dict_search(unsigned int hash, int pos, int max_pos, int* best_length)
 {
     int best_offset = 0;
     *best_length = 0;
@@ -57,9 +57,8 @@ int dict_search(int pos, int max_pos, int* best_length)
         return 0;
     }
 
-    long key = pack3(pos);
-
-    int bucket = hash(key) % DICT_SIZE;
+    unsigned int bucket = hash;
+    assert(bucket < DICT_SIZE);
     int searchpos = search_dict[bucket]; // begin search
 
     // iterate through chain, searching for matches
@@ -158,26 +157,25 @@ void compress_stream(FILE* input, FILE* output)
 
         char cur_c = buffer[pos % BUFFER_SIZE]; // current char
 
-        debug_print("Hash table\n");
-        for (int i = 0; i < DICT_SIZE; ++i)
-            debug_print("%d ", search_dict[i]);
-        debug_print("\n");
-
-        debug_print("Next table\n");
-        for (int i = 0; i < BUFFER_SIZE; ++i)
-            debug_print("%02d ", prev_pos[i]);
-        debug_print("\n");
-
         // reference pair (offset, length)
-        int offset, length;
+        int offset, length = 0;
+        int hash = 0;
 
-        // TODO: don't hash twice
+        // Search if not too close to the end
+        if (end_pos - pos >= KEY_LENGTH)
+        {
+            hash = knuth_hash(pack3(pos));
+            offset = dict_search(hash, pos, end_pos, &length);
 
-        offset = dict_search(pos, end_pos, &length);
-
-        debug_print("Search pos %d, found offset %d length %d\n", 
+            debug_print("Search pos %d, found offset %d length %d\n", 
             pos, offset, length);
-    
+        }
+        else 
+        {
+            debug_print("Too close to end\n");
+            offset = 0;
+        }
+
 
         // starting here, pos is modified
         // good match length, enough to save
@@ -188,7 +186,7 @@ void compress_stream(FILE* input, FILE* output)
             {
                 if (end_pos - pos >= KEY_LENGTH)
                 {
-                    dict_insert(pack3(pos), pos);
+                    dict_insert(hash, pos);
                 }
 
                 ++pos;
@@ -239,7 +237,7 @@ void compress_stream(FILE* input, FILE* output)
             // insert new key if possible
             if (end_pos - pos >= KEY_LENGTH)
             {
-                dict_insert(pack3(pos), pos);
+                dict_insert(hash, pos);
             }
             
             // read new byte and store at end_pos
