@@ -2,6 +2,7 @@
 
 #include <stdio.h>
 #include <assert.h>
+#include <stdint.h>
 
 // TODO: use size_t and better types everywhere
 
@@ -21,7 +22,7 @@ static_assert(BUFFER_SIZE >= WINDOW_LENGTH + LOOKAHEAD_LENGTH,
 #define DICT_BITS 15
 #define DICT_SIZE (1 << DICT_BITS)
 #define MAX_CHAIN_LENGTH 64
-#define NULL_POS -1
+#define NULL_POS (size_t)(-1)
 
 #define DEBUG 0 // turn into #ifdef?
 
@@ -29,10 +30,10 @@ static_assert(BUFFER_SIZE >= WINDOW_LENGTH + LOOKAHEAD_LENGTH,
             do { if (DEBUG) fprintf(stderr, __VA_ARGS__); } while (0)
 
 // dict functions
-unsigned int knuth_hash(unsigned int key);
+uint32_t knuth_hash(uint32_t key);
 void dict_reset(void);
-void dict_insert(unsigned int hash, int pos);
-int dict_search(unsigned int hash, int pos, int max_pos, int* best_length);
+void dict_insert(uint32_t hash, size_t pos);
+size_t dict_search(uint32_t hash, size_t pos, size_t end_pos, size_t* best_length);
 
 // Main functions
 

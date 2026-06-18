@@ -1,93 +1,93 @@
+#include <stdint.h>
 #include <string.h>
 #include <assert.h>
 #include "lzss.h"
 
 // Main circular buffer, storing search window and lookahead window
 // all positions are indexed mod buffer size
-static unsigned char buffer[BUFFER_SIZE]; 
+static uint8_t buffer[BUFFER_SIZE]; 
 
-// Search hash table "dictionary" data structure
-static int search_dict[DICT_SIZE];
+// Search hash table "dictionary" data structure, storing positions
+static size_t search_dict[DICT_SIZE];
 
 // stores previous pos in chain, indexes by current pos
 // (match length is not stored and instead computed)
-static int prev_pos[BUFFER_SIZE];
+static size_t prev_pos[BUFFER_SIZE];
 
 
-// TODO: cleaner?
-long pack3(int pos)
+// Pack next 3 bytes in buffer
+uint32_t pack3(size_t pos)
 {
-
-    int a = buffer[pos % BUFFER_SIZE];
-    int b = buffer[(pos+1) % BUFFER_SIZE];
-    int c = buffer[(pos+2) % BUFFER_SIZE];
+    uint32_t a = buffer[pos % BUFFER_SIZE];
+    uint32_t b = buffer[(pos+1) % BUFFER_SIZE];
+    uint32_t c = buffer[(pos+2) % BUFFER_SIZE];
     return (a << 16) | (b << 8) | c;
 }
 
 // Knuth multiplicative hash, mod 2 ** DICT_BITS
-unsigned int knuth_hash(unsigned int key)
+uint32_t knuth_hash(uint32_t key)
 {
     return (2654435769u * key) >> (32 - DICT_BITS);
 }
 
 // insert key-pos pair into the front of the chain
-// use Knuth key hash directly
-void dict_insert(unsigned int hash, int pos)
+// use Knuth key hash directly instead of key
+void dict_insert(uint32_t hash, size_t pos)
 {
-    int bucket = hash; 
+    uint32_t bucket = hash; 
     assert(bucket < BUFFER_SIZE);
 
-    int old_front = search_dict[bucket];
-    assert(old_front < pos); // strictly decreasing
+    size_t old_front = search_dict[bucket];
+    // strictly decreasing or end of chain
+    assert(old_front == NULL_POS || old_front < pos);
     search_dict[bucket] = pos;
     prev_pos[pos % BUFFER_SIZE] = old_front;
 
-    debug_print("insert hash_table[%d] = %d, next[%d] = %d\n",
+    debug_print("insert hash_table[%d] = %ld, next[%ld] = %ld\n",
         bucket, pos, pos % BUFFER_SIZE, old_front);
 }
 
 // returns best offset, also returns through pointer best length
-int dict_search(unsigned int hash, int pos, int max_pos, int* best_length)
+size_t dict_search(uint32_t hash, size_t pos, size_t end_pos, size_t* best_length)
 {
-    int best_offset = 0;
+    size_t best_offset = 0;
     *best_length = 0;
 
     // if too close to the end, abort search
-    if (max_pos - pos < KEY_LENGTH)
+    if (end_pos - pos < KEY_LENGTH)
     {
         return 0;
     }
 
-    unsigned int bucket = hash;
+    uint32_t bucket = hash;
     assert(bucket < DICT_SIZE);
-    int searchpos = search_dict[bucket]; // begin search
+    size_t searchpos = search_dict[bucket]; // begin search
 
     // iterate through chain, searching for matches
-    for (int i = 0; i < MAX_CHAIN_LENGTH; ++i)
+    for (size_t i = 0; i < MAX_CHAIN_LENGTH; ++i)
     {
-        debug_print("Searchpos %d\n", searchpos);
+        debug_print("Searchpos %zu\n", searchpos);
+
         // reached end of chain
         if (searchpos == NULL_POS) 
-        {
             break;
-        }
 
         // all pos values not mod buffer
-        int offset = pos - searchpos;
-        int back = pos - offset;
-        int fwd = pos;
-        int length = 0;
+        size_t offset = pos - searchpos;
+        size_t back = pos - offset;
+        size_t fwd = pos;
+        size_t length = 0;
 
         // break when chain decreasing position falls out of window
         if (offset > WINDOW_LENGTH)
         {
-            debug_print("Break on offset %d\n", offset);
+            debug_print("Break on offset %zu\n", offset);
             break;
         }
 
         // greedily match
         // trick: in matching, length can be greater than offset
-        for (; length < LOOKAHEAD_LENGTH && fwd < max_pos; ++length)
+        for (; length < LOOKAHEAD_LENGTH && fwd < end_pos; ++length)
         {
             if (buffer[back % BUFFER_SIZE] != buffer[fwd % BUFFER_SIZE])
                 break;
@@ -96,7 +96,7 @@ int dict_search(unsigned int hash, int pos, int max_pos, int* best_length)
             ++fwd;
         }
 
-        debug_print("Match %d %d\n", offset, length);
+        debug_print("Match %zu %zu\n", offset, length);
 
         if (length > *best_length)
         {
@@ -105,10 +105,12 @@ int dict_search(unsigned int hash, int pos, int max_pos, int* best_length)
         }
 
         // move to next
-        assert(searchpos != prev_pos[searchpos % BUFFER_SIZE]);
-        searchpos = prev_pos[searchpos % BUFFER_SIZE];
+        size_t prev = prev_pos[searchpos % BUFFER_SIZE];
+        assert(searchpos != prev);
+        searchpos = prev;
     }
 
+    // If best offset returned is 0, ensure it's not a nonzero length match
     assert(!(best_offset == 0 && *best_length > 0));
 
     return best_offset;
@@ -116,51 +118,46 @@ int dict_search(unsigned int hash, int pos, int max_pos, int* best_length)
 
 void dict_reset(void)
 {
-    for (int i = 0; i < DICT_SIZE; ++i)
+    for (size_t i = 0; i < DICT_SIZE; ++i)
         search_dict[i] = NULL_POS;
 
-    for (int i = 0; i < BUFFER_SIZE; ++i)
-    {
+    for (size_t i = 0; i < BUFFER_SIZE; ++i)
         prev_pos[i] = NULL_POS;
-    }
-
 }
 
 void compress_stream(FILE* input, FILE* output)
 {
     // stores up to 8 tokens
-    char output_buffer[8 * REF_MAX_SIZE];
+    uint8_t output_buffer[8 * REF_MAX_SIZE];
 
     // Clear search window and buffers
     dict_reset();
     memset(buffer, 0, BUFFER_SIZE);
 
-    // position index, can be larger than buffer size.
-    int pos = 0;
+    // curren position index
+    size_t pos = 0;
 
     // read initial LOOKAHEAD_LENGTH bytes (or up to EOF) into buffer
-    int count = fread(buffer, 1, LOOKAHEAD_LENGTH, input);
-    debug_print("Initial read %d bytes\n", count);
-
     // lookahead end position (pos after last byte)
-    int end_pos = count; 
+    size_t end_pos = fread(buffer, 1, LOOKAHEAD_LENGTH, input);
+    debug_print("Initial read %zu bytes\n", end_pos);
 
-    int tokens = 0; // track tokens (literal or offset-length ref) outputted
-    unsigned char bitflags = 0; // flags for 8 tokens at a time
-    int op = 0; // output buffer pointer
+    size_t tokens = 0; // track tokens (literal or offset-length ref) outputted
+    uint8_t bitflags = 0; // flags for 8 tokens at a time
+    size_t op = 0; // output buffer pointer
 
     // main loop: iterate through current position in input
     // lookahead buffer end maintains ahead of pos, until it stops increasing
     // at pos == end_pos, where end_pos stopped due to EOF
     while(pos < end_pos)
     {
-        debug_print("POS %d\n", pos);
+        debug_print("POS %zu\n", pos);
 
-        char cur_c = buffer[pos % BUFFER_SIZE]; // current char
+        uint8_t cur_c = buffer[pos % BUFFER_SIZE]; // current char
 
         // reference pair (offset, length)
-        int hash = 0;
-        int offset, length = 0;
+        uint32_t hash = 0;
+        size_t offset, length = 0;
 
         // Search if not too close to the end
         if (pos + KEY_LENGTH < end_pos)
@@ -168,7 +165,7 @@ void compress_stream(FILE* input, FILE* output)
             hash = knuth_hash(pack3(pos));
             offset = dict_search(hash, pos, end_pos, &length);
 
-            debug_print("Search pos %d, found offset %d length %d\n", 
+            debug_print("Search pos %zu, found offset %zu length %zu\n", 
             pos, offset, length);
         }
         else 
@@ -177,15 +174,13 @@ void compress_stream(FILE* input, FILE* output)
             offset = 0;
         }
 
-
         // starting here, pos is modified
         // good match length, enough to save
         if (length >= REF_MAX_SIZE) 
         {
             // insert new keys up to but not including length bytes ahead
-            for (int i = 0; i < length; ++i)
+            for (size_t i = 0; i < length; ++i)
             {
-
                 if (pos + KEY_LENGTH < end_pos)
                 {
                     hash = knuth_hash(pack3(pos));
@@ -197,9 +192,6 @@ void compress_stream(FILE* input, FILE* output)
             // write offset and length to output buffer, either 2 or 3 bytes
             // variable-length offset: if 0-127, write 0xxxxxxx
             // else up to 32767, write 1yyyyyyy xxxxxxxx
-            // DEFLATE uses 1-32768
-            // DEFLATE also uses length-3 instead for slightly more length
-            // TODO: refactor into own small function
             if (offset < 128) 
             {
                 output_buffer[op++] = offset;
@@ -212,13 +204,13 @@ void compress_stream(FILE* input, FILE* output)
 
             output_buffer[op++] = length;
 
-            debug_print("push ref (%d,%d)\n", offset, length);
+            debug_print("push ref (%zu,%zu)\n", offset, length);
 
             // mark one flag
             bitflags |= 1 << (tokens % 8);
 
             // read length bytes lookahead or until EOF
-            int bytes_read;
+            size_t bytes_read;
             for (bytes_read = 0; bytes_read < length; ++bytes_read)
             {
                 int c = fgetc(input);
@@ -229,7 +221,7 @@ void compress_stream(FILE* input, FILE* output)
                 ++end_pos;
             }
 
-            debug_print("Bytes read %d\n", bytes_read);
+            debug_print("Bytes read %zu\n", bytes_read);
         }
 
         else // no match, output literal to buffer
@@ -268,7 +260,7 @@ void compress_stream(FILE* input, FILE* output)
 
             // write output buffer to output stream
             fwrite(output_buffer, op, 1, output);
-            debug_print("output %d bytes\n", op);
+            debug_print("output %zu bytes\n", op);
 
             op = 0; // reset output buffer
             bitflags = 0; // reset bitflags
@@ -283,8 +275,9 @@ void compress_stream(FILE* input, FILE* output)
         fputc(bitflags, output);
         debug_print("output bitflags %08b\n", bitflags);
 
+        // write directly to output stream
         fwrite(output_buffer, op, 1, output);
-        debug_print("output %d final bytes\n", op);
+        debug_print("output %zu final bytes\n", op);
     }
 }
 
@@ -295,11 +288,11 @@ int decompress(FILE* input, FILE* output)
     // reset buffer to initial zero state
     memset(buffer, 0, BUFFER_SIZE);
 
-    int pos = 0; // abstract buffer position
+    size_t pos = 0; // abstract buffer position
 
     while (1)
     {
-        debug_print("Pos at loop start: %d", pos);
+        debug_print("POS %zu", pos);
 
         // read bitflags byte
         int c = fgetc(input);
@@ -307,7 +300,7 @@ int decompress(FILE* input, FILE* output)
         if (c == EOF) 
             return 0;
 
-        unsigned char bitflags = (unsigned char)c;
+        uint8_t bitflags = c;
 
         debug_print("Read bitflags %b\n", bitflags);
 
@@ -316,10 +309,9 @@ int decompress(FILE* input, FILE* output)
         {
             if (bitflags & (1 << i)) // ref pair
             {
-                int offset = 0;
+                size_t offset = 0;
 
                 // expect to read 2 or 3 bytes here, depending on offset size
-                // TODO: test these
                 int oa = fgetc(input);
 
                 if (oa == EOF)
@@ -348,15 +340,15 @@ int decompress(FILE* input, FILE* output)
                     return 1;
                 }
 
-                debug_print("Read offset %d length %d\n", offset, length);
+                debug_print("Read offset %zu length %d\n", offset, length);
 
-                int back = pos - offset;
-                int front = pos;
+                size_t back = pos - offset;
+                size_t front = pos;
 
                 // push and output one byte at a time
                 while (front < pos + length)
                 {
-                    unsigned char b = buffer[back % BUFFER_SIZE];
+                    uint8_t b = buffer[back % BUFFER_SIZE];
                     buffer[front % BUFFER_SIZE] = b;
                     fputc(b, output);
                     debug_print("output %c\n", b);
