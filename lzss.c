@@ -14,6 +14,9 @@ static int hash_table[DICT_SIZE];
 // (match length is not stored and instead computed)
 static int next_pos[BUFFER_SIZE];
 
+// to make deletion constant time
+static int prev_pos[BUFFER_SIZE];
+
 // TODO: cleaner?
 long pack3(int pos)
 {
@@ -21,15 +24,18 @@ long pack3(int pos)
     int a = buffer[pos % BUFFER_SIZE];
     int b = buffer[(pos+1) % BUFFER_SIZE];
     int c = buffer[(pos+2) % BUFFER_SIZE];
-    return a | (b << 8) | (c << 16);
+    return (a << 16) | (b << 8) | c;
 }
 
 // TODO: better hash function
 int hash(long key)
 {
-    unsigned long val = (2654435769 * key) >> 15;
+    unsigned long val = ((2654435769 * key) >> 15) % DICT_SIZE;
     debug_print("hash(0x%lx) = %ld\n", key, val);
-    return key % DICT_SIZE;
+
+
+
+    return val % DICT_SIZE;
 }
 
 
@@ -42,10 +48,49 @@ void dict_insert(long key, int pos)
     hash_table[bucket] = pos;
     next_pos[pos % BUFFER_SIZE] = old_front;
 
-    debug_print("insert hash_table[%d] = %d \n",
-        bucket, pos);
+    debug_print("insert hash_table[%d] = %d, next[%d] = %d\n",
+        bucket, pos, pos % BUFFER_SIZE, old_front);
+
+    if (old_front != NULL_POS)
+    {
+        prev_pos[old_front % BUFFER_SIZE] = pos;
+        debug_print("prev[%d] = %d\n", old_front % BUFFER_SIZE, pos);
+    }
+
+
 }
 
+// delete directly by pos table
+void dict_delete(int pos)
+{
+
+    assert(pos >= 0);
+    assert(pos != NULL_POS);
+
+    debug_print("Delete %d\n", pos);
+
+
+    int prev = prev_pos[pos % BUFFER_SIZE];
+    int next = next_pos[pos % BUFFER_SIZE];
+
+    if (prev != NULL_POS)
+    {
+        assert(prev % BUFFER_SIZE != next);
+        next_pos[prev % BUFFER_SIZE] = next;
+        debug_print("set next[%d] = %d\n", prev % BUFFER_SIZE, next);
+
+    }
+
+    if (next != NULL_POS)
+    {
+        assert(next % BUFFER_SIZE != prev);
+
+        prev_pos[next % BUFFER_SIZE] = prev;
+        debug_print("set prev[%d] = %d\n", next % BUFFER_SIZE, prev);
+
+    }
+
+}
 
 // TODO: search needs to check the match. this comes with computing length
 
@@ -66,9 +111,11 @@ int dict_search(int pos, int max_pos, int* best_length)
     int bucket = hash(key) % DICT_SIZE;
     int searchpos = hash_table[bucket]; // begin search
 
+
     // iterate through chain, searching for matches
     for (int i = 0; i < MAX_CHAIN_LENGTH; ++i)
     {
+        debug_print("Searchpos %d\n", searchpos);
         // reached end of chain
         if (searchpos == NULL_POS) 
         {
@@ -85,14 +132,15 @@ int dict_search(int pos, int max_pos, int* best_length)
         int fwd = pos;
         int length = 0;
 
-        debug_print("Searchpos %d\n", searchpos);
 
 
-        // skip over too old entries that are "lazy deleted"
+
+
+        // break when monotonically decreasing chain falls out of window
         if (offset > WINDOW_LENGTH)
         {
-            debug_print("Skip offset %d\n", offset);
-            continue;
+            debug_print("Break on offset %d\n", offset);
+            break;
 
         }
 
@@ -109,6 +157,8 @@ int dict_search(int pos, int max_pos, int* best_length)
             ++fwd;
         }
 
+        debug_print("Match %d %d\n", offset, length);
+
         if (length > *best_length)
         {
             *best_length = length;
@@ -116,6 +166,7 @@ int dict_search(int pos, int max_pos, int* best_length)
         }
 
         // move to next
+        assert(searchpos != next_pos[searchpos % BUFFER_SIZE]);
         searchpos = next_pos[searchpos % BUFFER_SIZE];
     }
 
@@ -130,7 +181,10 @@ void dict_reset(void)
         hash_table[i] = NULL_POS;
 
     for (int i = 0; i < BUFFER_SIZE; ++i)
+    {
         next_pos[i] = NULL_POS;
+        prev_pos[i] = NULL_POS;
+    }
 
 }
 
@@ -167,7 +221,22 @@ void compress_stream(FILE* input, FILE* output)
     // at pos == end_pos, where end_pos stopped due to EOF
     while(pos < end_pos)
     {
+        debug_print("POS %d\n", pos);
+
         char cur_c = buffer[pos % BUFFER_SIZE]; // current char
+
+        debug_print("Hash table\n");
+        for (int i = 0; i < DICT_SIZE; ++i)
+            debug_print("%d ", hash_table[i]);
+        debug_print("\n");
+
+        debug_print("Next and prev table\n");
+        for (int i = 0; i < BUFFER_SIZE; ++i)
+            debug_print("%02d ", next_pos[i]);
+        debug_print("\n");
+        for (int i = 0; i < BUFFER_SIZE; ++i)
+            debug_print("%02d ", prev_pos[i]);
+        debug_print("\n");
 
 
         // reference pair (offset, length)
@@ -180,20 +249,32 @@ void compress_stream(FILE* input, FILE* output)
         debug_print("Search pos %d, found offset %d length %d\n", 
             pos, offset, length);
     
-        // insert new key if possible
-        if (end_pos - pos >= KEY_LENGTH)
-        {
-            dict_insert(pack3(pos), pos);
-
-        }
-
-        // Lazy delete: don't bother deleting and just skip over invalid
 
         // starting here, pos is modified
         // good match length, enough to save
         if (length >= REF_MAX_SIZE) 
         {
-            pos += length;
+
+            // insert new keys and delete old keys for length bytes
+            for (int i = 0; i < length; ++i)
+            {
+
+                if (end_pos - pos >= KEY_LENGTH)
+                {
+                    dict_insert(pack3(pos), pos);
+
+                }
+
+
+                // delete old key if fell out of search window
+                int back = pos - WINDOW_LENGTH;
+                if (back >= 0)
+                {
+                    //dict_delete(back);
+                }
+
+                ++pos;
+            }
 
             // write offset and length to output buffer, either 2 or 3 bytes
             // variable-length offset: if 0-127, write 0xxxxxxx
@@ -230,12 +311,19 @@ void compress_stream(FILE* input, FILE* output)
                 ++end_pos;
             }
 
+            assert(pos <= end_pos);
+
             debug_print("Bytes read %d\n", bytes_read);
         }
 
         else // no match, output literal to buffer
         {
-            ++pos;
+            // insert new key if possible
+            if (end_pos - pos >= KEY_LENGTH)
+            {
+                dict_insert(pack3(pos), pos);
+
+            }
             
             // read new byte and store at end_pos
             int c = fgetc(input);
@@ -251,6 +339,17 @@ void compress_stream(FILE* input, FILE* output)
             debug_print("push literal '%c'\n", cur_c);
 
             // mark zero flag by doing nothing
+
+            // delete old key if fell out of search window
+            int back = pos - WINDOW_LENGTH;
+            if (back >= 0)
+            {
+                //dict_delete(back);
+            }
+
+
+            ++pos;
+
         }
     
         ++tokens;
