@@ -170,7 +170,6 @@ void compress(FILE* input, FILE* output)
         }
         else 
         {
-            debug_print("Too close to end\n");
             offset = 0;
         }
 
@@ -178,17 +177,6 @@ void compress(FILE* input, FILE* output)
         // good match length, enough to save
         if (length >= REF_MAX_SIZE) 
         {
-            // insert new keys up to but not including length bytes ahead
-            for (size_t i = 0; i < length; ++i)
-            {
-                if (pos + KEY_LENGTH < end_pos)
-                {
-                    hash = knuth_hash(pack3(pos));
-                    dict_insert(hash, pos);
-                }
-                ++pos;
-            }
-
             // write offset and length to output buffer, either 2 or 3 bytes
             // variable-length offset: if 0-127, write 0xxxxxxx
             // else up to 32767, write 1yyyyyyy xxxxxxxx
@@ -226,6 +214,8 @@ void compress(FILE* input, FILE* output)
 
         else // no match, output literal to buffer
         {
+            length = 1; // used for moving forward
+
             // read new byte and store at end_pos
             int c = fgetc(input);
 
@@ -239,16 +229,19 @@ void compress(FILE* input, FILE* output)
             output_buffer[op++] = cur_c;
             debug_print("push literal '%c'\n", cur_c);
 
-            // insert this pos's key
-            if (pos + KEY_LENGTH < end_pos)
-            {
-                dict_insert(hash, pos);
-            }
-
             // mark zero flag by doing nothing
-            
-            ++pos;  
         }
+
+        // insert new keys up to but not including length bytes ahead
+        for (size_t i = 0; i < length; ++i)
+            {
+                if (pos + KEY_LENGTH < end_pos)
+                {
+                    hash = knuth_hash(pack3(pos));
+                    dict_insert(hash, pos);
+                }
+                ++pos;
+            }
     
         ++tokens;
 
