@@ -245,8 +245,9 @@ void compress(FILE* input, FILE* output)
     
         ++tokens;
 
-        // if reached 8 tokens, output bitflags and 8 tokens
-        if (tokens % 8 == 0)
+        // finally, if reached 8 tokens or end
+        // output bitflags and output buffer tokens
+        if ((tokens % 8 == 0) || (pos == end_pos))
         {
             fputc(bitflags, output);
             debug_print("output bitflags %08b\n", bitflags);
@@ -260,17 +261,6 @@ void compress(FILE* input, FILE* output)
         }
 
         debug_print("\n"); // end loop
-    }
-
-    // output any possible leftover tokens
-    if (tokens % 8 != 0)
-    {
-        fputc(bitflags, output);
-        debug_print("output bitflags %08b\n", bitflags);
-
-        // write directly to output stream
-        fwrite(output_buffer, op, 1, output);
-        debug_print("output %zu final bytes\n", op);
     }
 }
 
