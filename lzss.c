@@ -280,8 +280,8 @@ int decompress(FILE* input, FILE* output)
         // read bitflags byte
         int c = fgetc(input);
 
-        if (c == EOF) 
-            return 0;
+        if (c == EOF) // valid to EOF here
+            return 0; 
 
         uint8_t bitflags = c;
 
@@ -296,13 +296,6 @@ int decompress(FILE* input, FILE* output)
 
                 // expect to read 2 or 3 bytes here, depending on offset size
                 int oa = fgetc(input);
-
-                if (oa == EOF)
-                {
-                    fprintf(stderr, "Unexpected EOF");
-                    return 1;
-                }
-
                 int ob = 0;
 
                 if (oa < 0x80) // one byte offset
@@ -317,9 +310,9 @@ int decompress(FILE* input, FILE* output)
 
                 int length = fgetc(input);
 
-                if ((ob == EOF) || (length == EOF))
+                if ((oa == EOF) || (ob == EOF) || (length == EOF))
                 {
-                    fprintf(stderr, "Unexpected EOF");
+                    fprintf(stderr, "Unexpected EOF when reading ref");
                     return 1;
                 }
 
@@ -347,7 +340,7 @@ int decompress(FILE* input, FILE* output)
             {
                 int c = fgetc(input);
 
-                // could be EOF if token count isn't multiple of 8
+                // valid to EOF if token count isn't multiple of 8
                 if (c == EOF)
                     return 0;
 
