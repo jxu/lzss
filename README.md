@@ -55,15 +55,15 @@ Other data structures like suffix trees (or KMP?) can work, but they don't have 
 
 The hash function uses the "multiplication method" described in CLRS 3ed, Section 11.3.2. For an $p$-bit hash, i.e. mod $m = 2^p$:
 
-$$h(k) = \lfloor m \{kA\} \rfloor$$
+$$h(k) = \lfloor m \lbrace kA \rbrace \rfloor$$
 
 where $A$ is an irrational number between $0$ and $1$.
-(The notation $\{kA\}$ means the fractional part of $kA$.)
+(The notation $\lbrace kA \rbrace$ means the fractional part of $kA$.)
 
 Knuth suggests $A = \phi^{-1} = (\sqrt 5 - 1) / 2 \approx 0.6180339887 \dots$.  (see below for discussion)
 
 Let's say we're using unsigned 32-bit int words.
-We approximate $A = 2654435769 / 2^{32}$. Then the low-order 32-bit word of $k \times 2654435769$ approximates the fractional part $\{kA\}$. The most significant bits are higher quality (use more of the key), so we take the $p$ most significant bits, which is done by shifting right by $32 - p$.
+We approximate $A = 2654435769 / 2^{32}$. Then the low-order 32-bit word of $k \times 2654435769$ approximates the fractional part $\lbrace kA \rbrace$. The most significant bits are higher quality (use more of the key), so we take the $p$ most significant bits, which is done by shifting right by $32 - p$.
 
 The hash function is implemented simply:
 
