@@ -70,11 +70,11 @@ The hash function is implemented simply:
 ```c
 uint32_t hash(uint32_t key)
 {
-    return (UINT32_C(2654435769) * key) >> (32 - p);
+    return ((uint32_t)2654435769 * key) >> (32 - p);
 }
 ```
 
-The constant has to be specified as unsigned 32-bit with a [funky macro](https://en.cppreference.com/c/header/stdint) to prevent any weird integer promotions to signed or 64-bit. I had a bug with this earlier where my types somehow resulted in a negative hash. What width is an [integer constant](https://en.cppreference.com/c/language/integer_constant)? It could be an `int` or `long`, but those widths are implementation-defined. Just thinking about it pisses me off (this will go in my long blog post about everything that annoys me about C).
+For safety, the constant is specified as unsigned 32-bit to prevent any weird integer promotions to signed or 64-bit. I had a bug with this earlier where my types somehow resulted in a negative hash. What width is an [integer constant](https://en.cppreference.com/c/language/integer_constant)? It could be an `int` or `long` or `long long` (C99), but those widths are implementation-defined and only required to be at least certain widths.[^1] Just thinking about it pisses me off (this will go in my long blog post about everything that annoys me about C).
 
 The great thing about this hash is it's only two CPU instructions: a multiply and a shift, so extremely fast. But how good is it as a hash function? 
 
@@ -86,3 +86,4 @@ None of this has any real impact on the compression with a decent hash function,
 
 See [the answers on the SO question](https://stackoverflow.com/questions/11871245/knuth-multiplicative-hash) and Knuth TAOCP Vol. 3, Section 6.4 Hashing for more details. Wow, I did not expect to write this much about the hash function.
 
+[^1]: Eric Postpischil pointed out on SO that if a hypothetical implementation had 64-bit `int`, the multiplication will be 64-bit anyway.
