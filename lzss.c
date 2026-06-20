@@ -27,7 +27,7 @@ uint32_t pack3(size_t pos)
 // Knuth multiplicative hash, mod 2 ** DICT_BITS
 uint32_t knuth_hash(uint32_t key)
 {
-    return (2654435769u * key) >> (32 - DICT_BITS);
+    return (UINT32_C(2654435769) * key) >> (32 - DICT_BITS);
 }
 
 // insert key-pos pair into the front of the chain
