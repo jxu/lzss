@@ -5,6 +5,7 @@
 #include <string.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdint.h>
 #include "lzss.h"
 
 #define CHECK(cond) if (!(cond)) { \
@@ -31,34 +32,35 @@ void test_dict(void)
     printf("Dict tests passed\n");
 }
 
-
-
-
-void test_compress(void)
+// C arrays decay into pointers when passed to functions, so pass in sizes
+// Function tests if inbuf data gets compressed to expect data
+void test_compress_check(uint8_t inbuf[], size_t insize, uint8_t expect[], size_t expect_size)
 {
-    unsigned char inbuf[8] = {0};
-    unsigned char outbuf[8];
-    unsigned char expected[4] = {0b00000010, 0, 1, 7};
+    uint8_t outbuf[1024];
 
     // glibc simulate file stream with memory
-    FILE* infile = fmemopen(inbuf, sizeof(inbuf), "r");
+    FILE* infile = fmemopen(inbuf, insize, "r");
     FILE* outfile = fmemopen(outbuf, sizeof(outbuf), "w");
 
     compress(infile, outfile);
 
-    CHECK(ftell(outfile) == sizeof(expected));
+    CHECK((size_t)ftell(outfile) == expect_size);
 
     // must close or flush stream to write
     fclose(infile);
     fclose(outfile);
 
-    for (int i = 0; i < 4; ++i)
-    {
-        printf("%x ", outbuf[i]);
-    }
-    printf("\n");
+    // actual array check
+    CHECK(memcmp(outbuf, expect, expect_size) == 0);
+}
 
-    CHECK(memcmp(outbuf, expected, sizeof(expected)) == 0);
+
+void test_compress(void)
+{
+    uint8_t inbuf[8] = {0};
+    uint8_t expected[] = {0b00000010, 0, 1, 7};
+
+    test_compress_check(inbuf, sizeof(inbuf), expected, sizeof(expected));
 
     printf("Compress tests passed\n");
 }
@@ -68,6 +70,5 @@ int main()
 {
     test_dict();
  
-
     //test_compress();
 }
