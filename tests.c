@@ -34,24 +34,33 @@ void test_dict(void)
 
 // C arrays decay into pointers when passed to functions, so pass in sizes
 // Function tests if inbuf data gets compressed to expect data
-void test_compress_check(uint8_t inbuf[], size_t insize, uint8_t expect[], size_t expect_size)
+// and round-trip (compress and decompress returns to original)
+void test_compress_check(uint8_t orig_buf[], size_t orig_size, 
+                         uint8_t expect_buf[], size_t expect_size)
 {
-    uint8_t outbuf[1024];
+    uint8_t actual_buf[1024];
+    uint8_t decomp_buf[1024];
 
-    // glibc simulate file stream with memory
-    FILE* infile = fmemopen(inbuf, insize, "r");
-    FILE* outfile = fmemopen(outbuf, sizeof(outbuf), "w");
+    // glibc simulate file streams with memory
+    FILE* orig_file = fmemopen(orig_buf, orig_size, "r");
+    FILE* actual_file = fmemopen(actual_buf, sizeof(actual_buf), "w");
+    FILE* decomp_file = fmemopen(decomp_buf, orig_size, "w");
 
-    compress(infile, outfile);
+    compress(orig_file, actual_file);
+    decompress(actual_file, decomp_file);
 
-    CHECK((size_t)ftell(outfile) == expect_size);
+    // check outputs are correctly sized streams
+    CHECK((size_t)ftell(actual_file) == expect_size);
+    CHECK((size_t)ftell(decomp_file) == orig_size);
 
     // must close or flush stream to write
-    fclose(infile);
-    fclose(outfile);
+    fclose(orig_file);
+    fclose(actual_file);
+    fclose(decomp_file);
 
     // actual array check
-    CHECK(memcmp(outbuf, expect, expect_size) == 0);
+    CHECK(memcmp(actual_buf, expect_buf, expect_size) == 0);
+    CHECK(memcmp(decomp_buf, orig_buf, orig_size) == 0);
 }
 
 
