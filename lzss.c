@@ -275,7 +275,7 @@ int decompress(FILE* input, FILE* output)
 
     while (1)
     {
-        debug_print("POS %zu", pos);
+        debug_print("POS %zu\n", pos);
 
         // read bitflags byte
         int c = fgetc(input);
@@ -312,7 +312,7 @@ int decompress(FILE* input, FILE* output)
 
                 if ((oa == EOF) || (ob == EOF) || (length == EOF))
                 {
-                    fprintf(stderr, "Unexpected EOF when reading ref");
+                    fprintf(stderr, "Unexpected EOF when reading ref\n");
                     return 1;
                 }
 

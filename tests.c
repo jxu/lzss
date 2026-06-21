@@ -8,6 +8,8 @@
 #include <stdint.h>
 #include "lzss.h"
 
+#define TMPBUF_SIZE 1024
+
 #define CHECK(cond) if (!(cond)) { \
     fprintf(stderr, "%s:%d: FAIL %s\n", __FILE__, __LINE__, #cond); \
     exit(1); \
@@ -38,38 +40,46 @@ void test_dict(void)
 void test_compress_check(uint8_t orig_buf[], size_t orig_size, 
                          uint8_t expect_buf[], size_t expect_size)
 {
-    uint8_t actual_buf[1024];
-    uint8_t decomp_buf[1024];
+    uint8_t actual_buf[TMPBUF_SIZE];
+    uint8_t decomp_buf[TMPBUF_SIZE];
 
-    // glibc simulate file streams with memory
+    // glibc fmemopen simulates file streams with memory
+    // read buffer size must be exact for EOF getc to work correctly
     FILE* orig_file = fmemopen(orig_buf, orig_size, "r");
-    FILE* actual_file = fmemopen(actual_buf, sizeof(actual_buf), "w");
-    FILE* decomp_file = fmemopen(decomp_buf, orig_size, "w");
+    FILE* actual_file = fmemopen(actual_buf, TMPBUF_SIZE, "w");
 
     compress(orig_file, actual_file);
-    decompress(actual_file, decomp_file);
+    fflush(actual_file); // force write
 
-    // check outputs are correctly sized streams
+    // check compressed data is correctly sized and matches
     CHECK((size_t)ftell(actual_file) == expect_size);
-    CHECK((size_t)ftell(decomp_file) == orig_size);
+    CHECK(memcmp(actual_buf, expect_buf, expect_size) == 0);
 
-    // must close or flush stream to write
     fclose(orig_file);
     fclose(actual_file);
-    fclose(decomp_file);
 
-    // actual array check
-    CHECK(memcmp(actual_buf, expect_buf, expect_size) == 0);
+    // reopen "actual file" for reading with with exact size
+    actual_file = fmemopen(actual_buf, expect_size, "r");
+    FILE* decomp_file = fmemopen(decomp_buf, TMPBUF_SIZE, "w");
+
+    decompress(actual_file, decomp_file);
+    fflush(decomp_file);
+
+    // checks decompressed is correctly sized and matches
+    CHECK((size_t)ftell(decomp_file) == orig_size);
     CHECK(memcmp(decomp_buf, orig_buf, orig_size) == 0);
+
+    fclose(actual_file);
+    fclose(decomp_file);
 }
 
 
 void test_compress(void)
 {
-    uint8_t inbuf[8] = {0};
+    uint8_t orig[8] = {0};
     uint8_t expected[] = {0b00000010, 0, 1, 7};
 
-    test_compress_check(inbuf, sizeof(inbuf), expected, sizeof(expected));
+    test_compress_check(orig, sizeof(orig), expected, sizeof(expected));
 
     printf("Compress tests passed\n");
 }
@@ -79,5 +89,5 @@ int main()
 {
     test_dict();
  
-    //test_compress();
+    test_compress();
 }
