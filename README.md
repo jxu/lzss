@@ -63,7 +63,7 @@ where $A$ is an irrational number between $0$ and $1$.
 Knuth suggests $A = \phi^{-1} = (\sqrt 5 - 1) / 2 \approx 0.6180339887 \dots$.  (see below for discussion)
 
 Let's say we're using unsigned 32-bit int words.
-We approximate $A = 2654435769 / 2^{32}$. Then the low-order 32-bit word of $k \times 2654435769$ approximates the fractional part $\lbrace kA \rbrace$. The most significant bits are higher quality (use more of the key), so we take the $p$ most significant bits, which is done by shifting right by $32 - p$.
+We approximate $A = 2654435769 / 2^{32}$. Then the low-order 32-bit word of $k \times 2654435769$ approximates the fractional part $\lbrace kA \rbrace$. The most significant bits, forming the fractional part, define intervals of size $2^{-p}$ that satisfy equidistribution (I think, see below), so we take the $p$ most significant bits by shifting right by $32 - p$.
 
 The hash function is implemented simply:
 
