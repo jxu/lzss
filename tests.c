@@ -88,10 +88,29 @@ void test_endtoend_nul1(void)
     test_endtoend_data(orig, sizeof(orig), expect, sizeof(expect));
 }
 
+void test_endtoend_sam(void)
+{
+    // null terminated string
+    uint8_t orig[] = "I am Sam. Sam I am. That Sam-I-am! That Sam-I-am! I do not like that Sam-I-am!";
+    // can't believe I did this by hand
+    uint8_t expect[] = 
+    {
+        0x00, 'I', ' ', 'a', 'm', ' ', 'S', 'a', 'm',
+        0x0a, '.',   5,   4, ' ',  14,   4, '.', ' ', 'T', 'h',
+        0x04, 'a', 't',  15,   4, '-', 'I', '-', 'a', 'm',
+        0x02, '!',  15,  16, 'I', ' ', 'd', 'o', ' ', 'n',
+        0x00, 'o', 't', ' ', 'l', 'i', 'k', 'e', ' ',
+        0x02, 't',  29,  13, '\0',
+    };
+
+    test_endtoend_data(orig, sizeof(orig), expect, sizeof(expect));
+}
+
 void test_endtoend(void)
 {
     test_endtoend_nul8();
     test_endtoend_nul1();
+    test_endtoend_sam();
     printf("Compress tests passed\n");
 }
 
