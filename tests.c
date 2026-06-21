@@ -88,6 +88,13 @@ void test_endtoend_nul1(void)
     test_endtoend_data(orig, sizeof(orig), expect, sizeof(expect));
 }
 
+void test_endtoend_literals(void)
+{
+    uint8_t orig[] = {'a','b','c','d','e','f','g','h'};
+    uint8_t expect[] = {0, 'a','b','c','d','e','f','g','h'};
+    test_endtoend_data(orig, sizeof(orig), expect, sizeof(expect));
+}
+
 void test_endtoend_sam(void)
 {
     // null terminated string
@@ -110,6 +117,7 @@ void test_endtoend(void)
 {
     test_endtoend_nul8();
     test_endtoend_nul1();
+    test_endtoend_literals();
     test_endtoend_sam();
     printf("Compress tests passed\n");
 }
