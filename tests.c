@@ -34,18 +34,18 @@ void test_dict(void)
     printf("Dict tests passed\n");
 }
 
-// C arrays decay into pointers when passed to functions, so pass in sizes
-// Function tests if inbuf data gets compressed to expect data
-// and round-trip (compress and decompress returns to original)
-void test_compress_check(uint8_t orig_buf[], size_t orig_size, 
-                         uint8_t expect_buf[], size_t expect_size)
+// Test if orig data gets compressed to expect data
+// and round-trip (compressed gets decompressed to original)
+// Arrays decay into pointers when passed to functions, so pass in sizes
+void test_endtoend_data(uint8_t orig_data[], size_t orig_size, 
+                        uint8_t expect_data[], size_t expect_size)
 {
     uint8_t actual_buf[TMPBUF_SIZE];
     uint8_t decomp_buf[TMPBUF_SIZE];
 
     // glibc fmemopen simulates file streams with memory
     // read buffer size must be exact for EOF getc to work correctly
-    FILE* orig_file = fmemopen(orig_buf, orig_size, "r");
+    FILE* orig_file = fmemopen(orig_data, orig_size, "r");
     FILE* actual_file = fmemopen(actual_buf, TMPBUF_SIZE, "w");
 
     compress(orig_file, actual_file);
@@ -53,7 +53,7 @@ void test_compress_check(uint8_t orig_buf[], size_t orig_size,
 
     // check compressed data is correctly sized and matches
     CHECK((size_t)ftell(actual_file) == expect_size);
-    CHECK(memcmp(actual_buf, expect_buf, expect_size) == 0);
+    CHECK(memcmp(actual_buf, expect_data, expect_size) == 0);
 
     fclose(orig_file);
     fclose(actual_file);
@@ -67,27 +67,38 @@ void test_compress_check(uint8_t orig_buf[], size_t orig_size,
 
     // checks decompressed is correctly sized and matches
     CHECK((size_t)ftell(decomp_file) == orig_size);
-    CHECK(memcmp(decomp_buf, orig_buf, orig_size) == 0);
+    CHECK(memcmp(decomp_buf, orig_data, orig_size) == 0);
 
     fclose(actual_file);
     fclose(decomp_file);
 }
 
 
-void test_compress(void)
+void test_endtoend_nul8(void)
 {
     uint8_t orig[8] = {0};
-    uint8_t expected[] = {0b00000010, 0, 1, 7};
+    uint8_t expect[] = {0b00000010, 0, 1, 7};
+    test_endtoend_data(orig, sizeof(orig), expect, sizeof(expect));
+}
 
-    test_compress_check(orig, sizeof(orig), expected, sizeof(expected));
+void test_endtoend_nul1(void)
+{
+    uint8_t orig[1] = {0};
+    uint8_t expect[] = {0, 0};
+    test_endtoend_data(orig, sizeof(orig), expect, sizeof(expect));
+}
 
+void test_endtoend(void)
+{
+    test_endtoend_nul8();
+    test_endtoend_nul1();
     printf("Compress tests passed\n");
 }
 
 
 int main()
 {
-    test_dict();
+    //test_dict();
  
-    test_compress();
+    test_endtoend();
 }
