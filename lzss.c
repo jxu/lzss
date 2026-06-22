@@ -125,9 +125,7 @@ void dict_reset(void)
         prev_pos[i] = NULL_POS;
 }
 
-// main compress function
-// returns how many bytes written (should never be 0)
-size_t compress(FILE* input, FILE* output)
+void compress(FILE* input, FILE* output)
 {
     // stores up to 8 tokens
     uint8_t output_buffer[8 * REF_MAX_SIZE];
@@ -136,16 +134,17 @@ size_t compress(FILE* input, FILE* output)
     dict_reset();
     memset(buffer, 0, BUFFER_SIZE);
 
+    // curren position index
+    size_t pos = 0;
+
     // read initial LOOKAHEAD_LENGTH bytes (or up to EOF) into buffer
     // lookahead end position (pos after last byte)
     size_t end_pos = fread(buffer, 1, LOOKAHEAD_LENGTH, input);
     debug_print("Initial read %zu bytes\n", end_pos);
-    
-    size_t pos = 0; // curren position index
+
     size_t tokens = 0; // track tokens (literal or offset-length ref) outputted
     uint8_t bitflags = 0; // flags for 8 tokens at a time
     size_t op = 0; // output buffer pointer
-    size_t total_written = 0;
 
     // main loop: iterate through current position in input
     // lookahead buffer end maintains ahead of pos, until it stops increasing
@@ -252,12 +251,10 @@ size_t compress(FILE* input, FILE* output)
         {
             fputc(bitflags, output);
             debug_print("output bitflags %08b\n", bitflags);
-            ++total_written;
 
             // write output buffer to output stream
             fwrite(output_buffer, op, 1, output);
             debug_print("output %zu bytes\n", op);
-            total_written += op;
 
             op = 0; // reset output buffer
             bitflags = 0; // reset bitflags
@@ -265,7 +262,6 @@ size_t compress(FILE* input, FILE* output)
 
         debug_print("\n"); // end loop
     }
-    return total_written;
 }
 
 // decompress routine

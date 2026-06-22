@@ -44,7 +44,7 @@ size_t dict_search(uint32_t hash, size_t pos, size_t end_pos, size_t* best_lengt
 
 // Main functions
 
-size_t compress(FILE* input, FILE* output);
+void compress(FILE* input, FILE* output);
 
 int decompress(FILE* input, FILE* output);
 

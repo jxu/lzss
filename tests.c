@@ -43,11 +43,11 @@ void test_exact_helper(uint8_t orig_data[], size_t orig_size,
     FILE* orig_file = fmemopen(orig_data, orig_size, "r");
     FILE* actual_file = fmemopen(actual_buf, TMPBUF_SIZE, "w");
 
-    size_t actual_written = compress(orig_file, actual_file);
+    compress(orig_file, actual_file);
     fflush(actual_file); // force write
 
     // check compressed data is correctly sized and matches
-    assert(actual_written == expect_size);
+    assert((size_t)ftell(actual_file) == expect_size);
     assert(memcmp(actual_buf, expect_data, expect_size) == 0);
 
     fclose(orig_file);
