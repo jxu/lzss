@@ -1,19 +1,14 @@
 // Tests for compress/decompress functions
+// Uses asserts for checking, so don't define NDEBUG
 
 #include <assert.h>
 #include <complex.h>
 #include <string.h>
 #include <stdio.h>
-#include <stdlib.h>
 #include <stdint.h>
 #include "lzss.h"
 
 #define TMPBUF_SIZE 1024
-
-#define CHECK(cond) if (!(cond)) { \
-    fprintf(stderr, "%s:%d: FAIL %s\n", __FILE__, __LINE__, #cond); \
-    exit(1); \
-}
 
 
 void test_dict(void)
@@ -23,7 +18,7 @@ void test_dict(void)
     // try to search empty dict, should not return anything
     //int best_length;
 
-    //CHECK(dict_search(0, 8, &best_length) == 0);
+    //assert(dict_search(0, 8, &best_length) == 0);
 
     // insert entry 5:0
     //dict_insert(5, 0);
@@ -52,8 +47,8 @@ void test_endtoend_data(uint8_t orig_data[], size_t orig_size,
     fflush(actual_file); // force write
 
     // check compressed data is correctly sized and matches
-    CHECK(actual_written == expect_size);
-    CHECK(memcmp(actual_buf, expect_data, expect_size) == 0);
+    assert(actual_written == expect_size);
+    assert(memcmp(actual_buf, expect_data, expect_size) == 0);
 
     fclose(orig_file);
     fclose(actual_file);
@@ -66,8 +61,8 @@ void test_endtoend_data(uint8_t orig_data[], size_t orig_size,
     fflush(decomp_file);
 
     // checks decompressed is correctly sized and matches
-    CHECK((size_t)ftell(decomp_file) == orig_size);
-    CHECK(memcmp(decomp_buf, orig_data, orig_size) == 0);
+    assert((size_t)ftell(decomp_file) == orig_size);
+    assert(memcmp(decomp_buf, orig_data, orig_size) == 0);
 
     fclose(actual_file);
     fclose(decomp_file);
