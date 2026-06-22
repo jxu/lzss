@@ -32,8 +32,8 @@ void test_dict(void)
 // Test if orig data gets compressed to expect data
 // and round-trip (compressed gets decompressed to original)
 // Arrays decay into pointers when passed to functions, so pass in sizes
-void test_endtoend_data(uint8_t orig_data[], size_t orig_size, 
-                        uint8_t expect_data[], size_t expect_size)
+void test_exact_helper(uint8_t orig_data[], size_t orig_size, 
+                       uint8_t expect_data[], size_t expect_size)
 {
     uint8_t actual_buf[TMPBUF_SIZE];
     uint8_t decomp_buf[TMPBUF_SIZE];
@@ -69,28 +69,28 @@ void test_endtoend_data(uint8_t orig_data[], size_t orig_size,
 }
 
 
-void test_endtoend_nul8(void)
+void test_exact_nul8(void)
 {
     uint8_t orig[8] = {0};
     uint8_t expect[] = {0b00000010, 0, 1, 7};
-    test_endtoend_data(orig, sizeof(orig), expect, sizeof(expect));
+    test_exact_helper(orig, sizeof(orig), expect, sizeof(expect));
 }
 
-void test_endtoend_nul1(void)
+void test_exact_nul1(void)
 {
     uint8_t orig[1] = {0};
     uint8_t expect[] = {0, 0};
-    test_endtoend_data(orig, sizeof(orig), expect, sizeof(expect));
+    test_exact_helper(orig, sizeof(orig), expect, sizeof(expect));
 }
 
-void test_endtoend_literals(void)
+void test_exact_literals(void)
 {
     uint8_t orig[] = {'a','b','c','d','e','f','g','h'};
     uint8_t expect[] = {0, 'a','b','c','d','e','f','g','h'};
-    test_endtoend_data(orig, sizeof(orig), expect, sizeof(expect));
+    test_exact_helper(orig, sizeof(orig), expect, sizeof(expect));
 }
 
-void test_endtoend_sam(void)
+void test_exact_sam(void)
 {
     // null terminated string
     uint8_t orig[] = "I am Sam. Sam I am. That Sam-I-am! That Sam-I-am! I do not like that Sam-I-am!";
@@ -105,15 +105,15 @@ void test_endtoend_sam(void)
         0x02, 't',  29,  13, '\0',
     };
 
-    test_endtoend_data(orig, sizeof(orig), expect, sizeof(expect));
+    test_exact_helper(orig, sizeof(orig), expect, sizeof(expect));
 }
 
-void test_endtoend(void)
+void test_exact(void)
 {
-    test_endtoend_nul8();
-    test_endtoend_nul1();
-    test_endtoend_literals();
-    test_endtoend_sam();
+    test_exact_nul8();
+    test_exact_nul1();
+    test_exact_literals();
+    test_exact_sam();
     printf("Compress tests passed\n");
 }
 
@@ -122,5 +122,5 @@ int main()
 {
     //test_dict();
  
-    test_endtoend();
+    test_exact();
 }
