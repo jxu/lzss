@@ -8,15 +8,14 @@
 static uint8_t buffer[BUFFER_SIZE]; 
 
 // Search hash table "dictionary" data structure, storing positions
-static size_t search_dict[DICT_SIZE];
+static off_t search_dict[DICT_SIZE];
 
 // stores previous pos in chain, indexes by current pos
-// (match length is not stored and instead computed)
-static size_t prev_pos[BUFFER_SIZE];
+static off_t prev_pos[BUFFER_SIZE];
 
 
 // Pack next 3 bytes in buffer
-uint32_t pack3(size_t pos)
+uint32_t pack3(off_t pos)
 {
     uint32_t a = buffer[pos % BUFFER_SIZE];
     uint32_t b = buffer[(pos+1) % BUFFER_SIZE];
@@ -32,12 +31,12 @@ uint32_t knuth_hash(uint32_t key)
 
 // insert key-pos pair into the front of the chain
 // use Knuth key hash directly instead of key
-void dict_insert(uint32_t hash, size_t pos)
+void dict_insert(uint32_t hash, off_t pos)
 {
     uint32_t bucket = hash; 
     assert(bucket < BUFFER_SIZE);
 
-    size_t old_front = search_dict[bucket];
+    off_t old_front = search_dict[bucket];
     // strictly decreasing or end of chain
     assert(old_front == NULL_POS || old_front < pos);
     search_dict[bucket] = pos;
@@ -48,7 +47,7 @@ void dict_insert(uint32_t hash, size_t pos)
 }
 
 // returns best offset, also returns through pointer best length
-size_t dict_search(uint32_t hash, size_t pos, size_t end_pos, size_t* best_length)
+size_t dict_search(uint32_t hash, off_t pos, off_t end_pos, size_t* best_length)
 {
     size_t best_offset = 0;
     *best_length = 0;
@@ -61,10 +60,10 @@ size_t dict_search(uint32_t hash, size_t pos, size_t end_pos, size_t* best_lengt
 
     uint32_t bucket = hash;
     assert(bucket < DICT_SIZE);
-    size_t searchpos = search_dict[bucket]; // begin search
+    off_t searchpos = search_dict[bucket]; // begin search
 
     // iterate through chain, searching for matches
-    for (size_t i = 0; i < MAX_CHAIN_LENGTH; ++i)
+    for (int i = 0; i < MAX_CHAIN_LENGTH; ++i)
     {
         debug_print("Searchpos %zu\n", searchpos);
 
@@ -74,8 +73,8 @@ size_t dict_search(uint32_t hash, size_t pos, size_t end_pos, size_t* best_lengt
 
         // all pos values not mod buffer
         size_t offset = pos - searchpos;
-        size_t back = pos - offset;
-        size_t fwd = pos;
+        off_t back = pos - offset;
+        off_t fwd = pos;
         size_t length = 0;
 
         // break when chain decreasing position falls out of window
@@ -105,7 +104,7 @@ size_t dict_search(uint32_t hash, size_t pos, size_t end_pos, size_t* best_lengt
         }
 
         // move to next
-        size_t prev = prev_pos[searchpos % BUFFER_SIZE];
+        off_t prev = prev_pos[searchpos % BUFFER_SIZE];
         assert(searchpos != prev);
         searchpos = prev;
     }
@@ -135,16 +134,16 @@ void compress(FILE* input, FILE* output)
     memset(buffer, 0, BUFFER_SIZE);
 
     // curren position index
-    size_t pos = 0;
+    off_t pos = 0;
 
     // read initial LOOKAHEAD_LENGTH bytes (or up to EOF) into buffer
     // lookahead end position (pos after last byte)
-    size_t end_pos = fread(buffer, 1, LOOKAHEAD_LENGTH, input);
+    off_t end_pos = fread(buffer, 1, LOOKAHEAD_LENGTH, input);
     debug_print("Initial read %zu bytes\n", end_pos);
 
-    size_t tokens = 0; // track tokens (literal or offset-length ref) outputted
+    off_t tokens = 0; // track tokens (literal or offset-length ref) outputted
     uint8_t bitflags = 0; // flags for 8 tokens at a time
-    size_t op = 0; // output buffer pointer
+    int op = 0; // output buffer pointer
 
     // main loop: iterate through current position in input
     // lookahead buffer end maintains ahead of pos, until it stops increasing
@@ -254,7 +253,7 @@ void compress(FILE* input, FILE* output)
 
             // write output buffer to output stream
             fwrite(output_buffer, op, 1, output);
-            debug_print("output %zu bytes\n", op);
+            debug_print("output %d bytes\n", op);
 
             op = 0; // reset output buffer
             bitflags = 0; // reset bitflags
@@ -271,7 +270,7 @@ int decompress(FILE* input, FILE* output)
     // reset buffer to initial zero state
     memset(buffer, 0, BUFFER_SIZE);
 
-    size_t pos = 0; // abstract buffer position
+    off_t pos = 0; // abstract buffer position
 
     while (1)
     {
@@ -318,8 +317,8 @@ int decompress(FILE* input, FILE* output)
 
                 debug_print("Read offset %zu length %d\n", offset, length);
 
-                size_t back = pos - offset;
-                size_t front = pos;
+                off_t back = pos - offset;
+                off_t front = pos;
 
                 // push and output one byte at a time
                 while (front < pos + length)

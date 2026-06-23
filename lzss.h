@@ -3,8 +3,7 @@
 #include <stdio.h>
 #include <assert.h>
 #include <stdint.h>
-
-// TODO: use size_t and better types everywhere
+#include <sys/types.h>
 
 // use same circular buffer for search and lookahead
 #define BUFFER_BITS 16
@@ -22,7 +21,7 @@ static_assert(BUFFER_SIZE >= WINDOW_LENGTH + LOOKAHEAD_LENGTH,
 #define DICT_BITS 15
 #define DICT_SIZE (1 << DICT_BITS)
 #define MAX_CHAIN_LENGTH 64
-#define NULL_POS (size_t)(-1)
+#define NULL_POS -1
 
 // Define -DDEBUG in compilation to turn on debug printing
 // We do it this way so the print statements are always visible to compiler
@@ -39,8 +38,8 @@ static_assert(BUFFER_SIZE >= WINDOW_LENGTH + LOOKAHEAD_LENGTH,
 // dict functions
 uint32_t knuth_hash(uint32_t key);
 void dict_reset(void);
-void dict_insert(uint32_t hash, size_t pos);
-size_t dict_search(uint32_t hash, size_t pos, size_t end_pos, size_t* best_length);
+void dict_insert(uint32_t hash, off_t pos);
+size_t dict_search(uint32_t hash, off_t pos, off_t end_pos, size_t* best_length);
 
 // Main functions
 
