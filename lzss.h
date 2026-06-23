@@ -35,6 +35,12 @@ static_assert(BUFFER_SIZE >= WINDOW_LENGTH + LOOKAHEAD_LENGTH,
 #define debug_print(...) \
             do { if (DEBUG_PRINT) fprintf(stderr, __VA_ARGS__); } while (0)
 
+typedef enum
+{
+    STATUS_SUCCESS,
+    STATUS_FAIL,
+} status;
+
 // dict functions
 uint32_t knuth_hash(uint32_t key);
 void dict_reset(void);
@@ -45,5 +51,5 @@ size_t dict_search(uint32_t hash, off_t pos, off_t end_pos, size_t* best_length)
 
 void compress(FILE* input, FILE* output);
 
-int decompress(FILE* input, FILE* output);
+status decompress(FILE* input, FILE* output);
 

@@ -265,7 +265,7 @@ void compress(FILE* input, FILE* output)
 
 // decompress routine
 // returns 0 on success and 1 on failure
-int decompress(FILE* input, FILE* output)
+status decompress(FILE* input, FILE* output)
 {
     // reset buffer to initial zero state
     memset(buffer, 0, BUFFER_SIZE);
@@ -280,7 +280,7 @@ int decompress(FILE* input, FILE* output)
         int c = fgetc(input);
 
         if (c == EOF) // valid to EOF here
-            return 0; 
+            return STATUS_SUCCESS; 
 
         uint8_t bitflags = c;
 
@@ -312,7 +312,7 @@ int decompress(FILE* input, FILE* output)
                 if ((oa == EOF) || (ob == EOF) || (length == EOF))
                 {
                     fprintf(stderr, "Unexpected EOF when reading ref\n");
-                    return 1;
+                    return STATUS_FAIL;
                 }
 
                 debug_print("Read offset %zu length %d\n", offset, length);
@@ -341,7 +341,7 @@ int decompress(FILE* input, FILE* output)
 
                 // valid to EOF if token count isn't multiple of 8
                 if (c == EOF)
-                    return 0;
+                    return STATUS_SUCCESS;
 
                 debug_print("Read literal %c\n", c);
 
