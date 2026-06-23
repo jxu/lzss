@@ -115,6 +115,7 @@ size_t dict_search(uint32_t hash, off_t pos, off_t end_pos, size_t* best_length)
     return best_offset;
 }
 
+// Reset dictionary tables
 void dict_reset(void)
 {
     for (size_t i = 0; i < DICT_SIZE; ++i)
@@ -124,6 +125,8 @@ void dict_reset(void)
         prev_pos[i] = NULL_POS;
 }
 
+// Compress input stream and write to output stream.
+// Advances both streams's file positions.
 void compress(FILE* input, FILE* output)
 {
     // stores up to 8 tokens
@@ -263,8 +266,9 @@ void compress(FILE* input, FILE* output)
     }
 }
 
-// decompress routine
-// returns 0 on success and 1 on failure
+// Decompress input stream and write to output stream.
+// Advances both streams's file positions.
+// Returns status code for success or failure.
 status decompress(FILE* input, FILE* output)
 {
     // reset buffer to initial zero state

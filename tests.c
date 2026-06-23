@@ -6,9 +6,10 @@
 #include <string.h>
 #include <stdio.h>
 #include <stdint.h>
+#include <stdbool.h>
 #include "lzss.h"
 
-#define TMPBUF_SIZE 1024
+#define TMPBUF_SIZE 4096
 
 
 void test_dict(void)
@@ -117,10 +118,67 @@ void test_exact(void)
     printf("Compress tests passed\n");
 }
 
+// idiomatic compare streams: read chunks into buffer and compare
+bool streams_equal(FILE* s1, FILE* s2)
+{
+    uint8_t buf1[TMPBUF_SIZE];
+    uint8_t buf2[TMPBUF_SIZE];
+
+    while (1)
+    {
+        size_t n1 = fread(buf1, 1, sizeof(buf1), s1);
+        size_t n2 = fread(buf2, 1, sizeof(buf2), s2);
+
+        if (n1 != n2) // different sizes (or read error)
+            return false; 
+
+        if (n1 == 0) // both are 0 and hit EOF, done comparing
+            return true;
+
+        if (memcmp(buf1, buf2, n1) != 0) // data not equal
+            return false;
+    }
+}
+
+// Test compress then decompress, checking decompress matches the original
+void test_roundtrip_helper(FILE* infile)
+{
+    FILE* compressed = tmpfile();
+    FILE* decompressed = tmpfile();
+
+    // compress/decompress both move file pos, need to be rewound
+    compress(infile, compressed);
+    rewind(infile);
+    rewind(compressed);
+
+    decompress(compressed, decompressed);
+    rewind(decompressed);
+
+    assert(streams_equal(infile, decompressed));
+}
+
+void test_roundtrip_file(const char* filename)
+{
+    FILE* sample = fopen(filename, "r");
+
+    test_roundtrip_helper(sample);
+
+    fclose(sample);
+}
+
+void test_roundtrip(void)
+{
+    test_roundtrip_file("samples/sam.txt");
+    test_roundtrip_file("samples/kjv.txt"); // several MB
+
+    printf("Roundtrip tests passed\n");
+}
+
 
 int main()
 {
     //test_dict();
  
     test_exact();
+    test_roundtrip();
 }
