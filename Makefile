@@ -1,5 +1,5 @@
 CC = gcc
-CFLAGS = -O2 -Wall -Wextra -g
+CFLAGS = -O3 -g -Wall -Wextra
 
 release: executable
 

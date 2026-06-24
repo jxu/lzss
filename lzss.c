@@ -84,11 +84,14 @@ size_t dict_search(uint32_t hash, off_t pos, off_t end_pos, size_t* best_length)
             break;
         }
 
-        // greedily match
+        // greedily match hot loop
         // trick: in matching, length can be greater than offset
         for (; length < LOOKAHEAD_LENGTH && fwd < end_pos; ++length)
         {
-            if (buffer[back % BUFFER_SIZE] != buffer[fwd % BUFFER_SIZE])
+            // micro-optimization: signed (off_t) mod isn't as efficient,
+            // so explicit bitmasks here is actually faster
+            if (buffer[back & (BUFFER_SIZE - 1)] != 
+                    buffer[fwd & (BUFFER_SIZE - 1)])
                 break;
 
             ++back;
@@ -104,7 +107,7 @@ size_t dict_search(uint32_t hash, off_t pos, off_t end_pos, size_t* best_length)
         }
 
         // move to next
-        off_t prev = prev_pos[searchpos % BUFFER_SIZE];
+        off_t prev = prev_pos[searchpos & (BUFFER_SIZE - 1)];
         assert(searchpos != prev);
         searchpos = prev;
     }
