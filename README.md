@@ -15,6 +15,24 @@ Decoding is the same process but in reverse. Whenever we encounter a reference, 
 
 That's it! Everything else is implementation details.
 
+## Benchmarks
+
+Tested with default values: 64K buffer, 32K dict, 64 max chain length
+
+Summary of sample files:
+
+- zero.bin: 1024 NUL bytes
+- kjv.txt: KJV Bible text
+- gcc.elf: /usr/bin/gcc executable
+- libpypy.so: pypy library file
+
+| Input      | Original size (B) | Compress size (B) | Compress time (s) | Decompress time (s) |
+|------------|-------------------|-------------------|-------------------|---------------------|
+| zero.bin   | 1024              | 13                | 0.00              | 0.00                |
+| kjv.txt    | 4606957           | 1869914           | 0.3               | 0.08                |
+| gcc.elf    | 928584            | 433085            | 0.05              | 0.02                |
+| libpypy.so | 59802504          | 19780776          | 2.6               | 1.1                 |
+
 ## Implementation details
 
 Many little details go into the implementation to make it very efficient.
