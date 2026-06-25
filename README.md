@@ -140,3 +140,6 @@ This actually turned out to be about 20% faster, which is interesting because I 
 
 Another classic trick I tried is to not calculate mod at all and instead reset the index if it reaches the mod value. This trades the AND operation every loop for a conditional branch that is almost never taken. It ended up being slightly slower than the AND.
 
+One way to potentially make matching faster is to match multiple bytes at once. AVX2 offers the intuitively named [`VPCMPEQB`](https://www.felixcloutier.com/x86/pcmpeqb:pcmpeqw:pcmpeqd) (Vector Packed Compare Equal Byte), which compares 32 packed bytes in two 256-bit registers and fills in 0xFF for the bytes that match. Then [`VPMOVMSKB`](https://www.felixcloutier.com/x86/pmovmskb) (Vector Packed Move Mask Byte) takes the most-significant bit of each byte and packs them into one 32-bit register. Following `NOT` inverting the bits, [`BSF`](https://www.felixcloutier.com/x86/bsf) (Bit Scan Forward) identifies the first mismatch by the least significant bit set. Statistically, most matches will be short, so this only needs to be done once for the first 32 bytes and the rest can be matched one-by-one.
+I haven't implemented this as my code isn't going for pure speed, but it would be the main thing to optimize starting off.
+

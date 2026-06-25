@@ -86,7 +86,8 @@ size_t dict_search(uint32_t hash, off_t pos, off_t end_pos, size_t* best_length)
         }
 
         // greedily match hot loop
-        // trick: in matching, length can be greater than offset
+        // Idea: vectorize since most computation is spent here
+        // LZ77 trick: in matching, length can be greater than offset
         for (; length < LOOKAHEAD_LENGTH && fwd < end_pos; ++length)
         {
             // signed off_t modulo isn't as efficient, so use unsigned
