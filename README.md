@@ -105,3 +105,38 @@ None of this has any real impact on the compression with a decent hash function,
 See [the answers on the SO question](https://stackoverflow.com/questions/11871245/knuth-multiplicative-hash) and Knuth TAOCP Vol. 3, Section 6.4 Hashing for more details. Wow, I did not expect to write this much about the hash function.
 
 [^1]: Eric Postpischil pointed out on SO that if a hypothetical implementation had 64-bit `int`, the multiplication will be 64-bit anyway.
+
+### Mod buffer micro-optimization
+
+For fun, I profiled the code with perf, and most of the computation of compression is in the string-matching loop. This isn't surprising, as for every byte of the input, the table checks potentially `MAX_CHAIN_LENGTH` substring matches, each of which could be `LOOKAHEAD_LENGTH`. 
+
+In the string-matching code, there is a hot loop for matching character-by-character (not the most efficient, but simple):
+
+```c
+if (buffer[back % BUFFER_SIZE] != buffer[fwd % BUFFER_SIZE])
+```
+
+`BUFFER_SIZE` is naturally a power of two, but since `back` and `fwd` are signed `off_t` and negative integer modulo will be negative per C's arithmetic rules, GCC actually can't simply turn this modulo into a bitwise AND.
+Instead, the compiler does some branchless trickery like this:
+
+```asm
+    sar     rdx,63
+    shr     rdx,48
+    lea     rax,[r8+rdx*1]
+    movzx   eax,ax
+    sub     rax,rdx
+```
+
+1. `sar` (shift arithmetic right) by 63 actually fills `rdx` with the sign-bit
+2. `shr` (shift logical right) by 48 produces 0xFFFF bitmask for negative `rdx` and 0 for positive `rdx`
+3. `lea` adds the bitmask to the original
+4. `movzx` (move zero-extend) like a bitmask takes the lowest 16-bits, which is `BUFFER_SIZE`
+5. `sub` subtracts the bitmask
+
+The solution is simply to use unsigned values or do the bitmask manually.
+Since my buffer happened to be the size of an x86 register, GCC will produce `movzx edi, cx` which it taking the lowest 16-bits, but normally it would use `and`.
+
+This actually turned out to be about 20% faster, which is interesting because I hadn't realized signed mod could have such an impact. It proves the wisdom of optimizing what profiling tells you the most time is spent on.
+
+Another classic trick I tried is to not calculate mod at all and instead reset the index if it reaches the mod value. This trades the AND operation every loop for a conditional branch that is almost never taken. It ended up being slightly slower than the AND.
+

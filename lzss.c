@@ -72,6 +72,7 @@ size_t dict_search(uint32_t hash, off_t pos, off_t end_pos, size_t* best_length)
             break;
 
         // all pos values not mod buffer
+
         size_t offset = pos - searchpos;
         off_t back = pos - offset;
         off_t fwd = pos;
@@ -88,10 +89,9 @@ size_t dict_search(uint32_t hash, off_t pos, off_t end_pos, size_t* best_length)
         // trick: in matching, length can be greater than offset
         for (; length < LOOKAHEAD_LENGTH && fwd < end_pos; ++length)
         {
-            // micro-optimization: signed (off_t) mod isn't as efficient,
-            // so explicit bitmasks here is actually faster
-            if (buffer[back & (BUFFER_SIZE - 1)] != 
-                    buffer[fwd & (BUFFER_SIZE - 1)])
+            // signed off_t modulo isn't as efficient, so use unsigned
+            if (buffer[(uint64_t)back % BUFFER_SIZE] != 
+                    buffer[(uint64_t)fwd % BUFFER_SIZE])
                 break;
 
             ++back;
@@ -107,7 +107,7 @@ size_t dict_search(uint32_t hash, off_t pos, off_t end_pos, size_t* best_length)
         }
 
         // move to next
-        off_t prev = prev_pos[searchpos & (BUFFER_SIZE - 1)];
+        off_t prev = prev_pos[(uint64_t)searchpos % BUFFER_SIZE];
         assert(searchpos != prev);
         searchpos = prev;
     }
