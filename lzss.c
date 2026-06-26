@@ -96,8 +96,10 @@ size_t dict_search(uint32_t hash, off_t pos, off_t end_pos, size_t* best_length)
         bool match_remaining = true;
         const int VECTOR_BYTES = 32; 
 
-        // SIMD operation possible
-        // check won't overflow buffer
+        // Since most of the compression computation is spent string searching,
+        // Try using SIMD instructions to compare 32 bytes at once!
+
+        // check won't overflow buffer or exceed end pos
         if (length + VECTOR_BYTES < LOOKAHEAD_LENGTH &&
             fwd + VECTOR_BYTES < end_pos &&
             back_mod + VECTOR_BYTES < BUFFER_SIZE &&
@@ -107,22 +109,29 @@ size_t dict_search(uint32_t hash, off_t pos, off_t end_pos, size_t* best_length)
             // immintrin.h intel intrinsics
             __m256i by, fy, cy;
 
-            // VMOVDQU: read buffer bytes as 256-bit integer
+            // VMOVDQU: Vector MOVe Double Quadword Unaligned
+            // read buffer bytes as 256-bit integer
             by = _mm256_loadu_si256((__m256i_u*)(&buffer[back_mod]));
             fy = _mm256_loadu_si256((__m256i_u*)(&buffer[fwd_mod]));
 
-            cy = _mm256_cmpeq_epi8(by, fy); // VPCMPEQB
+            // VPCMPEQB: Vector Packed CoMPare EQual Bytes
+            // compare bytes, if equal set 0xFF, otherwise 0
+            cy = _mm256_cmpeq_epi8(by, fy); 
 
-            uint32_t m = _mm256_movemask_epi8(cy); // VPMOVMSKB
+            // VPMOVMSKB: Vector Packed MOVe MaSK Byte
+            // creates a mask from the MSB of each byte
+            uint32_t m = _mm256_movemask_epi8(cy); 
 
-            length = _tzcnt_u32(~m); // TZCNT
-            debug_print("Vector byte mask %b, length %zu\n", m, length);
+            // TZCNT: Trailing Zero CouNT
+            // count trailing zeros, equivalently find first bit set
+            length = _tzcnt_u32(~ m);
+            debug_print("Vector byte mask %b length %zu\n", m, length);
 
             back += VECTOR_BYTES;
             fwd += VECTOR_BYTES;
 
             if (length < VECTOR_BYTES)
-                match_remaining = false;
+                match_remaining = false; // done matching here
         }
 
         if (match_remaining)
@@ -149,7 +158,7 @@ size_t dict_search(uint32_t hash, off_t pos, off_t end_pos, size_t* best_length)
             best_offset = offset;
         }
 
-        // move to next
+        // move to next pos in chain
         off_t prev = prev_pos[(uint64_t)searchpos % BUFFER_SIZE];
         assert(searchpos != prev);
         searchpos = prev;
