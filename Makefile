@@ -1,5 +1,5 @@
 CC = gcc
-CFLAGS = -O3 -g -Wall -Wextra
+CFLAGS = -O3 -g -Wall -Wextra -march=haswell
 
 release: executable
 

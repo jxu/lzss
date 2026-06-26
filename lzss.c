@@ -1,6 +1,8 @@
 #include <stdint.h>
 #include <string.h>
 #include <assert.h>
+#include <stdbool.h>
+#include <immintrin.h>
 #include "lzss.h"
 
 // Main circular buffer, storing search window and lookahead window
@@ -81,6 +83,9 @@ size_t dict_search(uint32_t hash, off_t pos, off_t end_pos, size_t* best_length)
         off_t fwd = pos;
         size_t length = 0;
 
+        size_t back_mod = (uint64_t)back % BUFFER_SIZE;
+        size_t fwd_mod  = (uint64_t)fwd  % BUFFER_SIZE;
+
         // break when chain decreasing position falls out of window
         if (offset > WINDOW_LENGTH)
         {
@@ -88,18 +93,52 @@ size_t dict_search(uint32_t hash, off_t pos, off_t end_pos, size_t* best_length)
             break;
         }
 
-        // greedily match hot loop
-        // Idea: vectorize since most computation is spent here
-        // LZ77 trick: in matching, length can be greater than offset
-        for (; length < LOOKAHEAD_LENGTH && fwd < end_pos; ++length)
-        {
-            // signed off_t modulo isn't as efficient, so use unsigned
-            if (buffer[(uint64_t)back % BUFFER_SIZE] != 
-                    buffer[(uint64_t)fwd % BUFFER_SIZE])
-                break;
+        bool match_remaining = true;
+        const int VECTOR_BYTES = 32; 
 
-            ++back;
-            ++fwd;
+        // SIMD operation possible
+        // check won't overflow buffer
+        if (length + VECTOR_BYTES < LOOKAHEAD_LENGTH &&
+            fwd + VECTOR_BYTES < end_pos &&
+            back_mod + VECTOR_BYTES < BUFFER_SIZE &&
+            fwd_mod + VECTOR_BYTES < BUFFER_SIZE
+        )
+        {
+            // immintrin.h intel intrinsics
+            __m256i by, fy, cy;
+
+            // VMOVDQU: read buffer bytes as 256-bit integer
+            by = _mm256_loadu_si256((__m256i_u*)(&buffer[back_mod]));
+            fy = _mm256_loadu_si256((__m256i_u*)(&buffer[fwd_mod]));
+
+            cy = _mm256_cmpeq_epi8(by, fy); // VPCMPEQB
+
+            uint32_t m = _mm256_movemask_epi8(cy); // VPMOVMSKB
+
+            length = _tzcnt_u32(~m); // TZCNT
+            debug_print("Vector byte mask %b, length %zu\n", m, length);
+
+            back += VECTOR_BYTES;
+            fwd += VECTOR_BYTES;
+
+            if (length < VECTOR_BYTES)
+                match_remaining = false;
+        }
+
+        if (match_remaining)
+        {
+            // naively match
+            // LZ77 trick: in matching, length can be greater than offset
+            for (; length < LOOKAHEAD_LENGTH && fwd < end_pos; ++length)
+            {
+                // signed off_t modulo isn't as efficient, so use unsigned
+                if (buffer[(uint64_t)back % BUFFER_SIZE] != 
+                        buffer[(uint64_t)fwd % BUFFER_SIZE])
+                    break;
+
+                ++back;
+                ++fwd;
+            }
         }
 
         debug_print("Match %zu %zu\n", offset, length);
@@ -117,7 +156,8 @@ size_t dict_search(uint32_t hash, off_t pos, off_t end_pos, size_t* best_length)
     }
 
     // If best offset returned is 0, ensure it's not a nonzero length match
-    assert(!(best_offset == 0 && *best_length > 0));
+    if (best_offset == 0)
+        assert(*best_length == 0);
 
     return best_offset;
 }
