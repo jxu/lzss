@@ -88,23 +88,21 @@ The hash function is implemented simply:
 ```c
 uint32_t hash(uint32_t key)
 {
-    return ((uint32_t)2654435769 * key) >> (32 - p);
+    return (2654435769u * key) >> (32 - p);
 }
 ```
 
-For safety, the constant is specified as unsigned 32-bit to prevent any weird integer promotions to signed or 64-bit. I had a bug with this earlier where my types somehow resulted in a negative hash. What width is an [integer constant](https://en.cppreference.com/c/language/integer_constant)? It could be an `int` or `long` or `long long` (C99), but those widths are implementation-defined and only required to be at least certain widths.[^1] Just thinking about it pisses me off (this will go in my long blog post about everything that annoys me about C).
+For safety, the constant is specified as unsigned (note that `2654435769` itself doesn't fit into a 32-bit signed `int`). This is to prevent any weird integer promotions to signed or 64-bit. I had a bug with this earlier where my types somehow resulted in a negative hash. What width is an [integer constant](https://en.cppreference.com/c/language/integer_constant) (with no suffix)? The answer is: the first it can fit into of `int`, `long`, and `long long` (C99). But those widths are implementation-defined and only required to be at certain minimum widths. (Eric Postpischil pointed out on SO that if a cursed hypothetical implementation had a 64-bit `int`, the multiplication will go through [integer promotion](https://en.cppreference.com/c/language/conversion#Integer_promotions) and be performed with a 64-bit `int` anyway.) Just thinking about it pisses me off (this will go in my long blog post about everything that annoys me about C).
 
 The great thing about this hash is it's only two CPU instructions: a multiply and a shift, so extremely fast. But how good is it as a hash function? 
 
-The idea of multiplying the integer key by an irrational number is that we get another irrational number, with a uniformly distributed fractional part. 
+The idea of multiplying the integer key by an irrational number is that we get another irrational number with a uniformly distributed fractional part. 
 This is actually a result from surprisingly deep number theory ideas, namely [Weyl's equidistribution theorem](https://www2.math.upenn.edu/~gressman/analysis/09-equidistribution.html). That property is asymptotic, so says nothing about "small" $k$. 
 [The golden ratio is "maximally irrational"](https://cstheory.stackexchange.com/a/6203), i.e. has all small terms in its continued fraction. Therefore $k \phi$ isn't close to an integer for small $k$, and we can expect not too small or large hashes for small $k$, which seems like a good property. 
 
 None of this has any real impact on the compression with a decent hash function, as collisions aren't important at all compared to the dictionary size. The dictionary size directly determines whether you search a far-back match or not. Modern compressors can outperform DEFLATE by using MB or even GB size (7z) dictionaries and taking advantage of long-distance patterns. 
 
 See [the answers on the SO question](https://stackoverflow.com/questions/11871245/knuth-multiplicative-hash) and Knuth TAOCP Vol. 3, Section 6.4 Hashing for more details. Wow, I did not expect to write this much about the hash function.
-
-[^1]: Eric Postpischil pointed out on SO that if a hypothetical implementation had 64-bit `int`, the multiplication will be 64-bit anyway.
 
 ### Mod buffer micro-optimization
 
