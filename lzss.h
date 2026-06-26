@@ -41,6 +41,13 @@ typedef enum
     STATUS_FAIL,
 } status;
 
+// exposed for testing
+extern uint8_t buffer[BUFFER_SIZE]; 
+
+// helper functions
+uint32_t pack3(off_t pos);
+uint32_t knuth_hash(uint32_t key);
+
 // dict functions
 uint32_t knuth_hash(uint32_t key);
 void dict_reset(void);

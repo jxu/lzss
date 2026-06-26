@@ -14,17 +14,48 @@
 
 void test_dict(void)
 {
+    // clear buffer to all zeros and reset dict
+    memset(buffer, 0, BUFFER_SIZE);
     dict_reset();
 
-    // try to search empty dict, should not return anything
-    //int best_length;
+    // put in some data
+    uint8_t data[] = "aaaaaa";
+    memcpy(buffer, data, sizeof data);
 
-    //assert(dict_search(0, 8, &best_length) == 0);
+    size_t length, offset;
 
-    // insert entry 5:0
-    //dict_insert(5, 0);
+    // hash of "aaa"
+    uint32_t aaa_hash = knuth_hash(pack3(0));
 
+    
+    // try to search empty dict, should not return anything (offset = 0)
+    // dict_search API is kinda awkward because it references global buffer
+    offset = dict_search(aaa_hash, 1, 8, &length);
+    assert(offset == 0);
+    assert(length == 0);
 
+    // insert "aaa" at pos 0
+    dict_insert(aaa_hash, 0);
+
+    // search for hash starting at pos 1
+    // with end_pos = 5, the best match would be "aaaa" with offset 1, length 4
+    offset = dict_search(aaa_hash, 1, 5, &length);
+    assert(offset == 1);
+    assert(length == 4);
+
+    // with end_pos = 4, best match is offset 1, length 3
+    offset = dict_search(aaa_hash, 1, 4, &length);
+    assert(offset == 1);
+    assert(length == 3);
+
+    // insert "aaa" at pos 1, same hash
+    dict_insert(aaa_hash, 1);
+
+    // search for hash starting at pos 2, up to end pos 6
+    // both pos 0 and pos 1 match "aaaa", pos 1 is nearer
+    offset = dict_search(aaa_hash, 2, 6, &length);
+    assert(offset == 1);
+    assert(length == 4);
 
 
     printf("Dict tests passed\n");
@@ -177,8 +208,7 @@ void test_roundtrip(void)
 
 int main()
 {
-    //test_dict();
- 
+    test_dict();
     test_exact();
     test_roundtrip();
 }

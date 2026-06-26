@@ -5,7 +5,7 @@
 
 // Main circular buffer, storing search window and lookahead window
 // all positions are indexed mod buffer size
-static uint8_t buffer[BUFFER_SIZE]; 
+uint8_t buffer[BUFFER_SIZE]; 
 
 // Search hash table "dictionary" data structure, storing positions
 static off_t search_dict[DICT_SIZE];
@@ -46,7 +46,10 @@ void dict_insert(uint32_t hash, off_t pos)
         bucket, pos, pos % BUFFER_SIZE, old_front);
 }
 
+// for buffer at position pos, with hash of key at this pos
+// file ends at end_pos, exclusive
 // returns best offset, also returns through pointer best length
+// the returned match is checked against buffer to ensure it's an actual match
 size_t dict_search(uint32_t hash, off_t pos, off_t end_pos, size_t* best_length)
 {
     size_t best_offset = 0;
