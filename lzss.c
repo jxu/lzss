@@ -77,14 +77,11 @@ size_t dict_search(uint32_t hash, off_t pos, off_t end_pos, size_t* best_length)
             break;
 
         // all pos values not mod buffer
-
+        // unsigned for optimized modulo
         size_t offset = pos - searchpos;
-        off_t back = pos - offset;
-        off_t fwd = pos;
         size_t length = 0;
-
-        size_t back_mod = (uint64_t)back % BUFFER_SIZE;
-        size_t fwd_mod  = (uint64_t)fwd  % BUFFER_SIZE;
+        uint64_t back = pos - offset;
+        uint64_t fwd = pos;
 
         // break when chain decreasing position falls out of window
         if (offset > WINDOW_LENGTH)
@@ -101,9 +98,9 @@ size_t dict_search(uint32_t hash, off_t pos, off_t end_pos, size_t* best_length)
 
         // check won't overflow buffer or exceed end pos
         if (length + VECTOR_BYTES < LOOKAHEAD_LENGTH &&
-            fwd + VECTOR_BYTES < end_pos &&
-            back_mod + VECTOR_BYTES < BUFFER_SIZE &&
-            fwd_mod + VECTOR_BYTES < BUFFER_SIZE
+            fwd + VECTOR_BYTES < (uint64_t)end_pos &&
+            (back % BUFFER_SIZE) + VECTOR_BYTES < BUFFER_SIZE &&
+            (fwd % BUFFER_SIZE) + VECTOR_BYTES < BUFFER_SIZE
         )
         {
             // immintrin.h intel intrinsics
@@ -111,8 +108,8 @@ size_t dict_search(uint32_t hash, off_t pos, off_t end_pos, size_t* best_length)
 
             // VMOVDQU: Vector MOVe Double Quadword Unaligned
             // read buffer bytes as 256-bit integer
-            by = _mm256_loadu_si256((__m256i_u*)(&buffer[back_mod]));
-            fy = _mm256_loadu_si256((__m256i_u*)(&buffer[fwd_mod]));
+            by = _mm256_loadu_si256((__m256i_u*)(&buffer[back % BUFFER_SIZE]));
+            fy = _mm256_loadu_si256((__m256i_u*)(&buffer[fwd % BUFFER_SIZE]));
 
             // VPCMPEQB: Vector Packed CoMPare EQual Bytes
             // compare bytes, if equal set 0xFF, otherwise 0
@@ -138,11 +135,9 @@ size_t dict_search(uint32_t hash, off_t pos, off_t end_pos, size_t* best_length)
         {
             // naively match
             // LZ77 trick: in matching, length can be greater than offset
-            for (; length < LOOKAHEAD_LENGTH && fwd < end_pos; ++length)
+            for (; length < LOOKAHEAD_LENGTH && fwd < (uint64_t)end_pos; ++length)
             {
-                // signed off_t modulo isn't as efficient, so use unsigned
-                if (buffer[(uint64_t)back % BUFFER_SIZE] != 
-                        buffer[(uint64_t)fwd % BUFFER_SIZE])
+                if (buffer[back % BUFFER_SIZE] != buffer[fwd % BUFFER_SIZE])
                     break;
 
                 ++back;
@@ -159,7 +154,7 @@ size_t dict_search(uint32_t hash, off_t pos, off_t end_pos, size_t* best_length)
         }
 
         // move to next pos in chain
-        off_t prev = prev_pos[(uint64_t)searchpos % BUFFER_SIZE];
+        off_t prev = prev_pos[searchpos % BUFFER_SIZE];
         assert(searchpos != prev);
         searchpos = prev;
     }
