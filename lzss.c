@@ -372,11 +372,11 @@ status decompress(FILE* input, FILE* output)
 
                 debug_print("Read offset %zu length %d\n", offset, length);
 
-                off_t back = pos - offset;
-                off_t front = pos;
+                uint64_t back = pos - offset;
+                uint64_t front = pos;
 
                 // push and output one byte at a time
-                while (front < pos + length)
+                while ((off_t)front < pos + length)
                 {
                     uint8_t b = buffer[back % BUFFER_SIZE];
                     buffer[front % BUFFER_SIZE] = b;
