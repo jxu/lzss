@@ -372,19 +372,36 @@ status decompress(FILE* input, FILE* output)
 
                 debug_print("Read offset %zu length %d\n", offset, length);
 
-                off_t back = pos - offset;
-                off_t front = pos;
+                uint64_t back = pos - offset;
+                uint64_t front = pos;
 
-                // push and output one byte at a time
-                while (front < pos + length)
+                // if the write stays within the buffer and
+                // writing from back doesn't overlap into front, 
+                // write all at once
+                if ((front % BUFFER_SIZE) + length < BUFFER_SIZE && 
+                    (back % BUFFER_SIZE) + length < BUFFER_SIZE &&
+                    back + length < front)
                 {
-                    uint8_t b = buffer[back % BUFFER_SIZE];
-                    buffer[front % BUFFER_SIZE] = b;
-                    fputc(b, output);
-                    debug_print("output %c\n", b);
-                    
-                    ++front;
-                    ++back;
+                    memcpy(&buffer[front % BUFFER_SIZE], 
+                        &buffer[back % BUFFER_SIZE], length);
+
+                    fwrite(&buffer[back % BUFFER_SIZE], 1, length, output);
+
+                    front += length;
+                }
+                else
+                {                
+                    // otherwise, push and output one byte at a time
+                    while (front < pos + length)
+                    {
+                        uint8_t b = buffer[back % BUFFER_SIZE];
+                        buffer[front % BUFFER_SIZE] = b;
+                        fputc(b, output);
+                        debug_print("output %c\n", b);
+                        
+                        ++front;
+                        ++back;
+                    }
                 }
 
                 // move pos forward
