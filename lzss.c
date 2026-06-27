@@ -1,4 +1,5 @@
 #include <stdint.h>
+#include <stdio.h>
 #include <string.h>
 #include <assert.h>
 #include <stdbool.h>
@@ -192,7 +193,7 @@ void compress(FILE* input, FILE* output)
 
     // read initial LOOKAHEAD_LENGTH bytes (or up to EOF) into buffer
     // lookahead end position (pos after last byte)
-    off_t end_pos = fread(buffer, 1, LOOKAHEAD_LENGTH, input);
+    off_t end_pos = fread_unlocked(buffer, 1, LOOKAHEAD_LENGTH, input);
     debug_print("Initial read %zu bytes\n", end_pos);
 
     off_t tokens = 0; // track tokens (literal or offset-length ref) outputted
@@ -254,7 +255,7 @@ void compress(FILE* input, FILE* output)
             size_t bytes_read;
             for (bytes_read = 0; bytes_read < length; ++bytes_read)
             {
-                int c = fgetc(input);
+                int c = getc_unlocked(input);
                 if (c == EOF)
                     break;
                 
@@ -270,7 +271,7 @@ void compress(FILE* input, FILE* output)
             length = 1; // used for moving forward
 
             // read new byte and store at end_pos
-            int c = fgetc(input);
+            int c = getc_unlocked(input);
 
             if (c != EOF)
             {
@@ -302,11 +303,11 @@ void compress(FILE* input, FILE* output)
         // output bitflags and output buffer tokens
         if ((tokens % 8 == 0) || (pos == end_pos))
         {
-            fputc(bitflags, output);
+            fputc_unlocked(bitflags, output);
             debug_print("output bitflags %08b\n", bitflags);
 
             // write output buffer to output stream
-            fwrite(output_buffer, op, 1, output);
+            fwrite_unlocked(output_buffer, op, 1, output);
             debug_print("output %d bytes\n", op);
 
             op = 0; // reset output buffer
@@ -332,7 +333,7 @@ status decompress(FILE* input, FILE* output)
         debug_print("POS %zu\n", pos);
 
         // read bitflags byte
-        int c = fgetc(input);
+        int c = getc_unlocked(input);
 
         if (c == EOF) // valid to EOF here
             return STATUS_SUCCESS; 
@@ -349,7 +350,7 @@ status decompress(FILE* input, FILE* output)
                 size_t offset = 0;
 
                 // expect to read 2 or 3 bytes here, depending on offset size
-                int oa = fgetc(input);
+                int oa = getc_unlocked(input);
                 int ob = 0;
 
                 if (oa < 0x80) // one byte offset
@@ -358,11 +359,11 @@ status decompress(FILE* input, FILE* output)
                 }
                 else // two byte offset
                 {
-                    ob = fgetc(input);
+                    ob = getc_unlocked(input);
                     offset = ((oa & 0x7f) << 8) | ob;
                 }
 
-                int length = fgetc(input);
+                int length = getc_unlocked(input);
 
                 if ((oa == EOF) || (ob == EOF) || (length == EOF))
                 {
@@ -380,7 +381,7 @@ status decompress(FILE* input, FILE* output)
                 {
                     uint8_t b = buffer[back % BUFFER_SIZE];
                     buffer[front % BUFFER_SIZE] = b;
-                    fputc(b, output);
+                    fputc_unlocked(b, output);
                     debug_print("output %c\n", b);
                     
                     ++front;
@@ -392,7 +393,7 @@ status decompress(FILE* input, FILE* output)
             }
             else // literal byte (or EOF)
             {
-                int c = fgetc(input);
+                int c = getc_unlocked(input);
 
                 // valid to EOF if token count isn't multiple of 8
                 if (c == EOF)
@@ -401,7 +402,7 @@ status decompress(FILE* input, FILE* output)
                 debug_print("Read literal %c\n", c);
 
                 // output byte verbatim
-                fputc(c, output);
+                fputc_unlocked(c, output);
 
                 // push to buffer
                 buffer[pos % BUFFER_SIZE] = c;
