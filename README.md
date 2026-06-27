@@ -31,7 +31,7 @@ Summary of sample files:
 | zero.bin   | 1024              | 13                | 0.00              | 0.00                |
 | kjv.txt    | 4606957           | 1869914           | 0.3               | 0.08                |
 | gcc.elf    | 928584            | 433085            | 0.05              | 0.02                |
-| libpypy.so | 59802504          | 19780776          | 2.6               | 1.1                 |
+| libpypy.so | 59802504          | 19780776          | 2.0               | 1.1                 |
 
 ## Implementation details
 
@@ -104,7 +104,7 @@ None of this has any real impact on the compression with a decent hash function,
 
 See [the answers on the SO question](https://stackoverflow.com/questions/11871245/knuth-multiplicative-hash) and Knuth TAOCP Vol. 3, Section 6.4 Hashing for more details. Wow, I did not expect to write this much about the hash function.
 
-### Mod buffer micro-optimization
+### Matching (part 1): Mod buffer micro-optimization
 
 For fun, I profiled the code with perf, and most of the computation of compression is in the string-matching loop. This isn't surprising, as for every byte of the input, the table checks potentially `MAX_CHAIN_LENGTH` substring matches, each of which could be `LOOKAHEAD_LENGTH`. 
 
@@ -138,6 +138,22 @@ This actually turned out to be about 20% faster, which is interesting because I 
 
 Another classic trick I tried is to not calculate mod at all and instead reset the index if it reaches the mod value. This trades the AND operation every loop for a conditional branch that is almost never taken. It ended up being slightly slower than the AND.
 
-One way to potentially make matching faster is to match multiple bytes at once. AVX2 offers the intuitively named [`VPCMPEQB`](https://www.felixcloutier.com/x86/pcmpeqb:pcmpeqw:pcmpeqd) (Vector Packed Compare Equal Byte), which compares 32 packed bytes in two 256-bit registers and fills in 0xFF for the bytes that match. Then [`VPMOVMSKB`](https://www.felixcloutier.com/x86/pmovmskb) (Vector Packed Move Mask Byte) takes the most-significant bit of each byte and packs them into one 32-bit register. Following `NOT` inverting the bits, [`BSF`](https://www.felixcloutier.com/x86/bsf) (Bit Scan Forward) identifies the first mismatch by the least significant bit set. Statistically, most matches will be short, so this only needs to be done once for the first 32 bytes and the rest can be matched one-by-one.
-I haven't implemented this as my code isn't going for pure speed, but it would be the main thing to optimize starting off.
+### Matching (part 2): SIMD byte matching
 
+What's faster than matching byte-by-byte is matching multiple bytes at once. 
+After some research, AVX2 and BMI1 offer SIMD instructions with intuitive names that can do this efficiently, 32 bytes at a time! Statistically, most matches will be short, so this only needs to be done once for the first 32 bytes and the rest can be matched one-by-one.
+
+1. [`VMOVDQU`](https://www.felixcloutier.com/x86/movdqu:vmovdqu8:vmovdqu16:vmovdqu32:vmovdqu64) (Vector MOVe Double Quadword Unaligned) moves 256 bits of packed integer values from a memory location (array address) into a YMM register (unaligned is important because my strings can start wherever in the buffer)
+2. [`VPCMPEQB`](https://www.felixcloutier.com/x86/pcmpeqb:pcmpeqw:pcmpeqd) (Vector Packed CoMPare EQual Byte) compares packed bytes in two registers and fills in 0xFF for the bytes that match, 0x00 otherwise
+3. [`VPMOVMSKB`](https://www.felixcloutier.com/x86/pmovmskb) (Vector Packed MOVe MaSK Byte) creates a 32-bit mask from the most significant bit of each byte of the register, resuting in 0 bits where bytes differ
+4. [`NOT`](https://www.felixcloutier.com/x86/not) (NOT) bitwise inverts the mask, resulting in 1 bits where bytes differ
+5. [`TZCNT`](https://www.felixcloutier.com/x86/tzcnt) (Trailing Zero CouNT) finds the least significant bit set as an index (`BSF` does the same, but is undefined for 0 input, no good)
+
+Using this gave about a 25% speedup, which is pretty good.
+
+These instructions require a Haswell or newer CPU.
+If this were a real program with real users using Apple Silicon or a mobile device, I would put in a conditional compilation check and have the matching loop as a fallback. 
+
+### Further I/O work
+
+`fgetc`/`fputc` certainly isn't optimal, even if they're buffered on Linux, because they have overhead every byte. Even using the POSIX `_unlocked` variants isn't much better. Maintaining my own input and output buffers has a good chance to speed up slow I/O, which may be the bottleneck even if perf doesn't blame them. Apparently `fgetc` has to respect nonsense like `ungetc`, locking, and wide streams that I don't need. 
