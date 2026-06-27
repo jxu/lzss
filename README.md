@@ -26,12 +26,12 @@ Summary of sample files:
 - gcc.elf: /usr/bin/gcc executable
 - libpypy.so: pypy library file
 
-| Input      | Original size (B) | Compress size (B) | Compress time (s) | Decompress time (s) |
-|------------|-------------------|-------------------|-------------------|---------------------|
-| zero.bin   | 1024              | 13                | 0.00              | 0.00                |
-| kjv.txt    | 4606957           | 1869914           | 0.3               | 0.08                |
-| gcc.elf    | 928584            | 433085            | 0.05              | 0.02                |
-| libpypy.so | 59802504          | 19780776          | 2.0               | 1.1                 |
+|      Input | Original size (B) | Compress size (B) | Compress time (s) | Decompress time (s) |
+|-----------:|------------------:|------------------:|------------------:|--------------------:|
+|   zero.bin |              1024 |                13 |              0.00 |                0.00 |
+|    kjv.txt |           4606957 |           1869914 |              0.25 |                0.04 |
+|    gcc.elf |            928584 |            433085 |              0.05 |                0.02 |
+| libpypy.so |          59802504 |          19780776 |               1.7 |                 0.7 |
 
 ## Implementation details
 

@@ -9,7 +9,7 @@ debug: executable
 
 executable: compress decompress tests
 
-lzss.o: lzss.c lzss.h 
+lzss.o: lzss.c lzss.h buffered_io.h
 	$(CC) $(CFLAGS) -c $< -o $@
 
 compress: lzss.o compress.c 

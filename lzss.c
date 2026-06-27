@@ -5,6 +5,7 @@
 #include <stdbool.h>
 #include <immintrin.h>
 #include "lzss.h"
+#include "buffered_io.h"
 
 // Main circular buffer, storing search window and lookahead window
 // all positions are indexed mod buffer size
@@ -71,7 +72,7 @@ size_t dict_search(uint32_t hash, off_t pos, off_t end_pos, size_t* best_length)
     // iterate through chain, searching for matches
     for (int i = 0; i < MAX_CHAIN_LENGTH; ++i)
     {
-        debug_print("Searchpos %zu\n", searchpos);
+        debug_print("Searchpos %ld\n", searchpos);
 
         // reached end of chain
         if (searchpos == NULL_POS) 
@@ -255,7 +256,7 @@ void compress(FILE* input, FILE* output)
             size_t bytes_read;
             for (bytes_read = 0; bytes_read < length; ++bytes_read)
             {
-                int c = getc_unlocked(input);
+                int c = get_byte(input);
                 if (c == EOF)
                     break;
                 
@@ -271,7 +272,7 @@ void compress(FILE* input, FILE* output)
             length = 1; // used for moving forward
 
             // read new byte and store at end_pos
-            int c = getc_unlocked(input);
+            int c = get_byte(input);
 
             if (c != EOF)
             {
@@ -303,11 +304,14 @@ void compress(FILE* input, FILE* output)
         // output bitflags and output buffer tokens
         if ((tokens % 8 == 0) || (pos == end_pos))
         {
-            fputc_unlocked(bitflags, output);
+            put_byte(bitflags, output);
             debug_print("output bitflags %08b\n", bitflags);
 
             // write output buffer to output stream
-            fwrite_unlocked(output_buffer, op, 1, output);
+            for (int i = 0; i < op; ++i)
+            {
+                put_byte(output_buffer[i], output);
+            }
             debug_print("output %d bytes\n", op);
 
             op = 0; // reset output buffer
@@ -316,6 +320,8 @@ void compress(FILE* input, FILE* output)
 
         debug_print("\n"); // end loop
     }
+
+    flush_output(output);
 }
 
 // Decompress input stream and write to output stream.
@@ -333,10 +339,13 @@ status decompress(FILE* input, FILE* output)
         debug_print("POS %zu\n", pos);
 
         // read bitflags byte
-        int c = getc_unlocked(input);
+        int c = get_byte(input);
 
         if (c == EOF) // valid to EOF here
-            return STATUS_SUCCESS; 
+        {
+            flush_output(output);
+            return STATUS_SUCCESS;
+        }
 
         uint8_t bitflags = c;
 
@@ -350,7 +359,7 @@ status decompress(FILE* input, FILE* output)
                 size_t offset = 0;
 
                 // expect to read 2 or 3 bytes here, depending on offset size
-                int oa = getc_unlocked(input);
+                int oa = get_byte(input);
                 int ob = 0;
 
                 if (oa < 0x80) // one byte offset
@@ -359,15 +368,16 @@ status decompress(FILE* input, FILE* output)
                 }
                 else // two byte offset
                 {
-                    ob = getc_unlocked(input);
+                    ob = get_byte(input);
                     offset = ((oa & 0x7f) << 8) | ob;
                 }
 
-                int length = getc_unlocked(input);
+                int length = get_byte(input);
 
                 if ((oa == EOF) || (ob == EOF) || (length == EOF))
                 {
                     fprintf(stderr, "Unexpected EOF when reading ref\n");
+                    flush_output(output);
                     return STATUS_FAIL;
                 }
 
@@ -381,7 +391,7 @@ status decompress(FILE* input, FILE* output)
                 {
                     uint8_t b = buffer[back % BUFFER_SIZE];
                     buffer[front % BUFFER_SIZE] = b;
-                    fputc_unlocked(b, output);
+                    put_byte(b, output);
                     debug_print("output %c\n", b);
                     
                     ++front;
@@ -393,16 +403,19 @@ status decompress(FILE* input, FILE* output)
             }
             else // literal byte (or EOF)
             {
-                int c = getc_unlocked(input);
+                int c = get_byte(input);
 
                 // valid to EOF if token count isn't multiple of 8
                 if (c == EOF)
+                {
+                    flush_output(output);
                     return STATUS_SUCCESS;
+                }
 
                 debug_print("Read literal %c\n", c);
 
                 // output byte verbatim
-                fputc_unlocked(c, output);
+                put_byte(c, output);
 
                 // push to buffer
                 buffer[pos % BUFFER_SIZE] = c;
