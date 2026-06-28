@@ -93,7 +93,7 @@ size_t dict_search(uint32_t hash, off_t pos, off_t end_pos, size_t* best_length)
         }
 
         bool match_remaining = true;
-        const int VECTOR_BYTES = 32; 
+        const int VECTOR_BYTES = 8; 
 
         // Since most of the compression computation is spent string searching,
         // Try using SIMD instructions to compare 32 bytes at once!
@@ -106,25 +106,24 @@ size_t dict_search(uint32_t hash, off_t pos, off_t end_pos, size_t* best_length)
         )
         {
             // immintrin.h intel intrinsics
-            __m256i by, fy, cy;
+            
+            uint64_t by, fy, cy;
 
-            // VMOVDQU: Vector MOVe Double Quadword Unaligned
-            // read buffer bytes as 256-bit integer
-            by = _mm256_loadu_si256((__m256i_u*)(&buffer[back % BUFFER_SIZE]));
-            fy = _mm256_loadu_si256((__m256i_u*)(&buffer[fwd % BUFFER_SIZE]));
+            by = *(uint64_t*)(&buffer[back % BUFFER_SIZE]);
+            fy = *(uint64_t*)(&buffer[fwd % BUFFER_SIZE]);
 
-            // VPCMPEQB: Vector Packed CoMPare EQual Bytes
-            // compare bytes, if equal set 0xFF, otherwise 0
-            cy = _mm256_cmpeq_epi8(by, fy); 
+            cy = by ^ fy; 
 
-            // VPMOVMSKB: Vector Packed MOVe MaSK Byte
-            // creates a mask from the MSB of each byte
-            uint32_t m = _mm256_movemask_epi8(cy); 
-
-            // TZCNT: Trailing Zero CouNT
-            // count trailing zeros, equivalently find first bit set
-            length = _tzcnt_u32(~ m);
-            debug_print("Vector byte mask %b length %zu\n", m, length);
+            if (cy == 0) // builtin ctz undefined for 0
+            {
+                length = VECTOR_BYTES;
+            }
+            else 
+            {
+                length = __builtin_ctzll(cy) / 8;
+            }
+            
+            debug_print("Vector byte mask %lb length %zu\n", cy, length);
 
             back += VECTOR_BYTES;
             fwd += VECTOR_BYTES;
