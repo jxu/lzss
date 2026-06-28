@@ -4,3 +4,8 @@
 compress
 decompress
 tests
+
+seeds*
+output*
+*.lzss
+*.so
