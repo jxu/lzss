@@ -9,3 +9,4 @@ seeds*
 output*
 *.lzss
 *.so
+perf*

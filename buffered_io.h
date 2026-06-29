@@ -5,8 +5,8 @@
 #include <stdio.h>
 #include <stdint.h>
 
-#define INBUF_SIZE 8192
-#define OUTBUF_SIZE 8192
+#define INBUF_SIZE 65536
+#define OUTBUF_SIZE 65536
 
 static uint8_t inbuf[INBUF_SIZE];
 static uint8_t outbuf[OUTBUF_SIZE];

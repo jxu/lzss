@@ -154,6 +154,10 @@ Using this gave about a 25% speedup, which is pretty good.
 These instructions require a Haswell or newer CPU.
 If this were a real program with real users using Apple Silicon or a mobile device, I would put in a conditional compilation check and have the matching loop as a fallback. 
 
-### Further I/O work
+### More efficient I/O
 
-`fgetc`/`fputc` certainly isn't optimal, even if they're buffered on Linux, because they have overhead every byte. Even using the POSIX `_unlocked` variants isn't much better. Maintaining my own input and output buffers has a good chance to speed up slow I/O, which may be the bottleneck even if perf doesn't blame them. Apparently `fgetc` has to respect nonsense like `ungetc`, locking, and wide streams that I don't need. 
+`fgetc`/`fputc` for every single byte certainly isn't optimal, even if they're buffered on Linux, because they have overhead every call. POSIX has `_unlocked` variants that don't do file locking, but still have to do everything else in behavior, including updating EOF and error stream flags if needed and handling nonsense like `ungetc`. 
+
+I created my own very minimal buffered I/O functions and put them inline in a header. `get_byte` only has to read one byte from an input buffer and increment a pointer, and call `fread` when the buffer is exhausted. `put_byte` only has to write one byte to an output buffer, and call `fwrite` when the buffer is full. The one caveat is that the output has to be manually flushed with `flush_output`, since the usual closing or flushing the file won't do anything. 
+
+This seemed to make the compress run about 20% faster, although the unlocked I/O seemed almost as fast, so those will do as a drop-in replacement.
