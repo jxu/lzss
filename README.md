@@ -92,7 +92,7 @@ uint32_t hash(uint32_t key)
 }
 ```
 
-For safety, the constant is specified as unsigned (note that `2654435769` itself doesn't fit into a 32-bit signed `int`). This is to prevent any weird integer promotions to signed or 64-bit. I had a bug with this earlier where my types somehow resulted in a negative hash. What width is an [integer constant](https://en.cppreference.com/c/language/integer_constant) (with no suffix)? The answer is: the first it can fit into of `int`, `long`, and `long long` (C99). But those widths are implementation-defined and only required to be at certain minimum widths. (Eric Postpischil pointed out on SO that if a cursed hypothetical implementation had a 64-bit `int`, the multiplication will go through [integer promotion](https://en.cppreference.com/c/language/conversion#Integer_promotions) and be performed with a 64-bit `int` anyway.) Just thinking about it pisses me off (this will go in my long blog post about everything that annoys me about C).
+Here, the constant is specified as unsigned (note `2654435769` doesn't fit into a 32-bit signed `int`), to ensure the multiplication is unsigned 32-bit and to prevent any weird integer promotions to signed or 64-bit. I had a bug with this earlier where my types somehow resulted in a negative hash. What width is an [integer constant](https://en.cppreference.com/c/language/integer_constant) (with no suffix)? The answer is: the first it can fit into of `int`, `long`, and `long long` (C99). But those widths are implementation-defined and only required to be at certain minimum widths.[^1] Just thinking about it pisses me off (this will go in my long blog post about everything that annoys me about C).
 
 The great thing about this hash is it's only two CPU instructions: a multiply and a shift, so extremely fast. But how good is it as a hash function? 
 
@@ -103,6 +103,8 @@ This is actually a result from surprisingly deep number theory ideas, namely [We
 None of this has any real impact on the compression with a decent hash function, as collisions aren't important at all compared to the dictionary size. The dictionary size directly determines whether you search a far-back match or not. Modern compressors can outperform DEFLATE by using MB or even GB size (7z) dictionaries and taking advantage of long-distance patterns. 
 
 See [the answers on the SO question](https://stackoverflow.com/questions/11871245/knuth-multiplicative-hash) and Knuth TAOCP Vol. 3, Section 6.4 Hashing for more details. Wow, I did not expect to write this much about the hash function.
+
+[^1]: Eric Postpischil pointed out on SO that if a cursed hypothetical implementation had a 64-bit `int`, the multiplication arithmetic will go through [integer promotion](https://en.cppreference.com/c/language/conversion#Integer_promotions) and be performed with a 64-bit `int` anyway, so what I really need is a cast of the product result.
 
 ### Matching (part 1): Mod buffer micro-optimization
 
