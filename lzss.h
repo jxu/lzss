@@ -39,7 +39,7 @@ typedef enum
 {
     STATUS_SUCCESS,
     STATUS_FAIL,
-} status;
+} lzss_status;
 
 // exposed for testing
 extern uint8_t buffer[BUFFER_SIZE]; 
@@ -58,5 +58,5 @@ size_t dict_search(uint32_t hash, off_t pos, off_t end_pos, size_t* best_length)
 
 void compress(FILE* input, FILE* output);
 
-status decompress(FILE* input, FILE* output);
+lzss_status decompress(FILE* input, FILE* output);
 

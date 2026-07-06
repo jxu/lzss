@@ -327,7 +327,7 @@ void compress(FILE* input, FILE* output)
 // Decompress input stream and write to output stream.
 // Advances both streams's file positions.
 // Returns status code for success or failure.
-status decompress(FILE* input, FILE* output)
+lzss_status decompress(FILE* input, FILE* output)
 {
     // reset buffer to initial zero state
     memset(buffer, 0, BUFFER_SIZE);
