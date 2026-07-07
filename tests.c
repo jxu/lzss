@@ -11,49 +11,51 @@
 
 #define TMPBUF_SIZE 4096
 
+static lzss_state global_state;
 
 void test_dict(void)
 {
+    lzss_state* state = &global_state;
     // clear buffer to all zeros and reset dict
-    memset(buffer, 0, BUFFER_SIZE);
-    dict_reset();
+    memset(state->buffer, 0, BUFFER_SIZE);
+    dict_reset(state);
 
     // put in some data
     uint8_t data[] = "aaaaaa";
-    memcpy(buffer, data, sizeof data);
+    memcpy(state->buffer, data, sizeof data);
 
     size_t length, offset;
 
     // hash of "aaa"
-    uint32_t aaa_hash = knuth_hash(pack3(0));
+    uint32_t aaa_hash = knuth_hash(pack3(state, 0));
 
     
     // try to search empty dict, should not return anything (offset = 0)
     // dict_search API is kinda awkward because it references global buffer
-    offset = dict_search(aaa_hash, 1, 8, &length);
+    offset = dict_search(state, aaa_hash, 1, 8, &length);
     assert(offset == 0);
     assert(length == 0);
 
     // insert "aaa" at pos 0
-    dict_insert(aaa_hash, 0);
+    dict_insert(state, aaa_hash, 0);
 
     // search for hash starting at pos 1
     // with end_pos = 5, the best match would be "aaaa" with offset 1, length 4
-    offset = dict_search(aaa_hash, 1, 5, &length);
+    offset = dict_search(state, aaa_hash, 1, 5, &length);
     assert(offset == 1);
     assert(length == 4);
 
     // with end_pos = 4, best match is offset 1, length 3
-    offset = dict_search(aaa_hash, 1, 4, &length);
+    offset = dict_search(state, aaa_hash, 1, 4, &length);
     assert(offset == 1);
     assert(length == 3);
 
     // insert "aaa" at pos 1, same hash
-    dict_insert(aaa_hash, 1);
+    dict_insert(state, aaa_hash, 1);
 
     // search for hash starting at pos 2, up to end pos 6
     // both pos 0 and pos 1 match "aaaa", pos 1 is nearer
-    offset = dict_search(aaa_hash, 2, 6, &length);
+    offset = dict_search(state, aaa_hash, 2, 6, &length);
     assert(offset == 1);
     assert(length == 4);
 
@@ -75,7 +77,7 @@ void test_exact_helper(uint8_t orig_data[], size_t orig_size,
     FILE* orig_file = fmemopen(orig_data, orig_size, "r");
     FILE* actual_file = fmemopen(actual_buf, TMPBUF_SIZE, "w");
 
-    compress(orig_file, actual_file);
+    compress(&global_state, orig_file, actual_file);
     fflush(actual_file); // force write
 
     // check compressed data is correctly sized and matches
@@ -89,7 +91,7 @@ void test_exact_helper(uint8_t orig_data[], size_t orig_size,
     actual_file = fmemopen(actual_buf, expect_size, "r");
     FILE* decomp_file = fmemopen(decomp_buf, TMPBUF_SIZE, "w");
 
-    decompress(actual_file, decomp_file);
+    decompress(&global_state, actual_file, decomp_file);
     fflush(decomp_file);
 
     // checks decompressed is correctly sized and matches
@@ -178,11 +180,11 @@ void test_roundtrip_helper(FILE* infile)
     FILE* decompressed = tmpfile();
 
     // compress/decompress both move file pos, need to be rewound
-    compress(infile, compressed);
+    compress(&global_state, infile, compressed);
     rewind(infile);
     rewind(compressed);
 
-    decompress(compressed, decompressed);
+    decompress(&global_state, compressed, decompressed);
     rewind(decompressed);
 
     assert(streams_equal(infile, decompressed));

@@ -41,22 +41,30 @@ typedef enum
     STATUS_FAIL,
 } lzss_status;
 
-// exposed for testing
-extern uint8_t buffer[BUFFER_SIZE]; 
+typedef struct
+{
+    // Main circular buffer, storing search window and lookahead window
+    // all positions are indexed mod buffer size
+    uint8_t buffer[BUFFER_SIZE];
+    // Search hash table "dictionary" data structure, storing positions
+    off_t   search_dict[DICT_SIZE];
+    // stores previous pos in chain, indexes by current pos
+    off_t   prev_pos[BUFFER_SIZE];
+} lzss_state;
+
 
 // helper functions
-uint32_t pack3(off_t pos);
 uint32_t knuth_hash(uint32_t key);
 
+
 // dict functions
-uint32_t knuth_hash(uint32_t key);
-void dict_reset(void);
-void dict_insert(uint32_t hash, off_t pos);
-size_t dict_search(uint32_t hash, off_t pos, off_t end_pos, size_t* best_length);
+uint32_t pack3(const lzss_state* state, off_t pos);
+void dict_reset(lzss_state* state);
+void dict_insert(lzss_state* state, uint32_t hash, off_t pos);
+size_t dict_search(lzss_state* state, uint32_t hash, off_t pos, off_t end_pos, size_t* best_length);
 
 // Main functions
 
-void compress(FILE* input, FILE* output);
-
-lzss_status decompress(FILE* input, FILE* output);
+void compress(lzss_state* state, FILE* input, FILE* output);
+lzss_status decompress(lzss_state* state, FILE* input, FILE* output);
 
