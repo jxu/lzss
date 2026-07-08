@@ -27,7 +27,7 @@ void test_dict(void)
     size_t length, offset;
 
     // hash of "aaa"
-    uint32_t aaa_hash = knuth_hash(pack3(state, 0));
+    uint32_t aaa_hash = knuth_hash(pack3(state));
 
     
     // try to search empty dict, should not return anything (offset = 0)

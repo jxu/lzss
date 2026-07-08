@@ -46,10 +46,19 @@ typedef struct
     // Main circular buffer, storing search window and lookahead window
     // all positions are indexed mod buffer size
     uint8_t buffer[BUFFER_SIZE];
+
     // Search hash table "dictionary" data structure, storing positions
     off_t   search_dict[DICT_SIZE];
+
     // stores previous pos in chain, indexes by current pos
     off_t   prev_pos[BUFFER_SIZE];
+
+    // current input stream position, not mod buffer
+    off_t   pos;
+
+    // tracking known end position (byte after last known byte)
+    off_t   end_pos;
+
 } lzss_state;
 
 
@@ -58,7 +67,7 @@ uint32_t knuth_hash(uint32_t key);
 
 
 // dict functions
-uint32_t pack3(const lzss_state* state, off_t pos);
+uint32_t pack3(const lzss_state* state);
 void dict_reset(lzss_state* state);
 void dict_insert(lzss_state* state, uint32_t hash, off_t pos);
 size_t dict_search(lzss_state* state, uint32_t hash, off_t pos, off_t end_pos, size_t* best_length);
