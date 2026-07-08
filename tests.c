@@ -11,11 +11,12 @@
 
 #define TMPBUF_SIZE 4096
 
-static lzss_state global_state;
+static compressor global_compressor;
+static decompressor global_decompressor;
 
 void test_dict(void)
 {
-    lzss_state* state = &global_state;
+    compressor* state = &global_compressor;
     // clear buffer to all zeros and reset dict
     memset(state->buffer, 0, BUFFER_SIZE);
     dict_reset(state);
@@ -86,7 +87,7 @@ void test_exact_helper(uint8_t orig_data[], size_t orig_size,
     FILE* orig_file = fmemopen(orig_data, orig_size, "r");
     FILE* actual_file = fmemopen(actual_buf, TMPBUF_SIZE, "w");
 
-    compress(&global_state, orig_file, actual_file);
+    compress(&global_compressor, orig_file, actual_file);
     fflush(actual_file); // force write
 
     // check compressed data is correctly sized and matches
@@ -100,7 +101,7 @@ void test_exact_helper(uint8_t orig_data[], size_t orig_size,
     actual_file = fmemopen(actual_buf, expect_size, "r");
     FILE* decomp_file = fmemopen(decomp_buf, TMPBUF_SIZE, "w");
 
-    decompress(&global_state, actual_file, decomp_file);
+    decompress(&global_decompressor, actual_file, decomp_file);
     fflush(decomp_file);
 
     // checks decompressed is correctly sized and matches
@@ -189,11 +190,11 @@ void test_roundtrip_helper(FILE* infile)
     FILE* decompressed = tmpfile();
 
     // compress/decompress both move file pos, need to be rewound
-    compress(&global_state, infile, compressed);
+    compress(&global_compressor, infile, compressed);
     rewind(infile);
     rewind(compressed);
 
-    decompress(&global_state, compressed, decompressed);
+    decompress(&global_decompressor, compressed, decompressed);
     rewind(decompressed);
 
     assert(streams_equal(infile, decompressed));

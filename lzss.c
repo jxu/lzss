@@ -8,11 +8,11 @@
 #include "buffered_io.h"
 
 // Pack next 3 bytes in buffer at current pos
-uint32_t pack3(const lzss_state* state)
+uint32_t pack3(const compressor* C)
 {
-    uint32_t a = state->buffer[state->pos % BUFFER_SIZE];
-    uint32_t b = state->buffer[(state->pos+1) % BUFFER_SIZE];
-    uint32_t c = state->buffer[(state->pos+2) % BUFFER_SIZE];
+    uint32_t a = C->buffer[C->pos % BUFFER_SIZE];
+    uint32_t b = C->buffer[(C->pos+1) % BUFFER_SIZE];
+    uint32_t c = C->buffer[(C->pos+2) % BUFFER_SIZE];
     return (a << 16) | (b << 8) | c;
 }
 
@@ -24,38 +24,38 @@ uint32_t knuth_hash(uint32_t key)
 
 // at current pos, insert key-pos pair into the front of the chain
 // use key hash directly instead of key
-void dict_insert(lzss_state* state, uint32_t hash)
+void dict_insert(compressor* C, uint32_t hash)
 {
     uint32_t bucket = hash; 
     assert(bucket < BUFFER_SIZE);
 
-    off_t old_front = state->search_dict[bucket];
+    off_t old_front = C->search_dict[bucket];
     // strictly decreasing or end of chain
-    assert(old_front == NULL_POS || old_front < state->pos);
-    state->search_dict[bucket] = state->pos;
-    state->prev_pos[state->pos % BUFFER_SIZE] = old_front;
+    assert(old_front == NULL_POS || old_front < C->pos);
+    C->search_dict[bucket] = C->pos;
+    C->prev_pos[C->pos % BUFFER_SIZE] = old_front;
 
     debug_print("insert hash_table[%d] = %ld, next[%ld] = %ld\n",
-        bucket, state->pos, state->pos % BUFFER_SIZE, old_front);
+        bucket, C->pos, C->pos % BUFFER_SIZE, old_front);
 }
 
 // search by hash at current pos
 // returns best offset (0 if none), also returns through pointer best length
 // the returned match is checked against buffer to ensure it's an actual match
-size_t dict_search(lzss_state* state, uint32_t hash, size_t* best_length)
+size_t dict_search(compressor* C, uint32_t hash, size_t* best_length)
 {
     size_t best_offset = 0;
     *best_length = 0;
 
     // if too close to the end, abort search
-    if (state->end_pos - state->pos < KEY_LENGTH)
+    if (C->end_pos - C->pos < KEY_LENGTH)
     {
         return 0;
     }
 
     uint32_t bucket = hash;
     assert(bucket < DICT_SIZE);
-    off_t searchpos = state->search_dict[bucket]; // begin search
+    off_t searchpos = C->search_dict[bucket]; // begin search
 
     // iterate through chain, searching for matches
     for (int i = 0; i < MAX_CHAIN_LENGTH; ++i)
@@ -68,10 +68,10 @@ size_t dict_search(lzss_state* state, uint32_t hash, size_t* best_length)
 
         // all pos values not mod buffer
         // unsigned for optimized modulo
-        size_t offset = state->pos - searchpos;
+        size_t offset = C->pos - searchpos;
         size_t length = 0;
-        uint64_t back = state->pos - offset;
-        uint64_t fwd = state->pos;
+        uint64_t back = C->pos - offset;
+        uint64_t fwd = C->pos;
 
         // break when chain decreasing position falls out of window
         if (offset > WINDOW_LENGTH)
@@ -88,7 +88,7 @@ size_t dict_search(lzss_state* state, uint32_t hash, size_t* best_length)
 
         // check won't overflow buffer or exceed end pos
         if (length + VECTOR_BYTES < LOOKAHEAD_LENGTH &&
-            fwd + VECTOR_BYTES < (uint64_t)state->end_pos &&
+            fwd + VECTOR_BYTES < (uint64_t)C->end_pos &&
             (back % BUFFER_SIZE) + VECTOR_BYTES < BUFFER_SIZE &&
             (fwd % BUFFER_SIZE) + VECTOR_BYTES < BUFFER_SIZE
         )
@@ -99,8 +99,8 @@ size_t dict_search(lzss_state* state, uint32_t hash, size_t* best_length)
             // VMOVDQU: Vector MOVe Double Quadword Unaligned
             // read buffer bytes as 256-bit integer
 
-            by = _mm256_loadu_si256((__m256i_u*)(&(state->buffer[back % BUFFER_SIZE])));
-            fy = _mm256_loadu_si256((__m256i_u*)(&(state->buffer[fwd % BUFFER_SIZE])));
+            by = _mm256_loadu_si256((__m256i_u*)(&(C->buffer[back % BUFFER_SIZE])));
+            fy = _mm256_loadu_si256((__m256i_u*)(&(C->buffer[fwd % BUFFER_SIZE])));
 
             // VPCMPEQB: Vector Packed CoMPare EQual Bytes
             // compare bytes, if equal set 0xFF, otherwise 0
@@ -126,9 +126,9 @@ size_t dict_search(lzss_state* state, uint32_t hash, size_t* best_length)
         {
             // naively match
             // LZ77 trick: in matching, length can be greater than offset
-            for (; length < LOOKAHEAD_LENGTH && fwd < (uint64_t)state->end_pos; ++length)
+            for (; length < LOOKAHEAD_LENGTH && fwd < (uint64_t)C->end_pos; ++length)
             {
-                if (state->buffer[back % BUFFER_SIZE] != state->buffer[fwd % BUFFER_SIZE])
+                if (C->buffer[back % BUFFER_SIZE] != C->buffer[fwd % BUFFER_SIZE])
                     break;
 
                 ++back;
@@ -145,7 +145,7 @@ size_t dict_search(lzss_state* state, uint32_t hash, size_t* best_length)
         }
 
         // move to next pos in chain
-        off_t prev = state->prev_pos[searchpos % BUFFER_SIZE];
+        off_t prev = C->prev_pos[searchpos % BUFFER_SIZE];
         assert(searchpos != prev);
         searchpos = prev;
     }
@@ -158,33 +158,33 @@ size_t dict_search(lzss_state* state, uint32_t hash, size_t* best_length)
 }
 
 // Reset dictionary tables
-void dict_reset(lzss_state* state)
+void dict_reset(compressor* C)
 {
     for (size_t i = 0; i < DICT_SIZE; ++i)
-        state->search_dict[i] = NULL_POS;
+        C->search_dict[i] = NULL_POS;
 
     for (size_t i = 0; i < BUFFER_SIZE; ++i)
-        state->prev_pos[i] = NULL_POS;
+        C->prev_pos[i] = NULL_POS;
 }
 
 // Compress input stream and write to output stream.
 // Advances both streams's file positions.
-void compress(lzss_state* state, FILE* input, FILE* output)
+void compress(compressor* C, FILE* input, FILE* output)
 {
     // stores up to 8 tokens
     uint8_t output_buffer[8 * REF_MAX_SIZE];
 
     // Clear search window and buffers
-    dict_reset(state);
-    memset(state->buffer, 0, BUFFER_SIZE);
+    dict_reset(C);
+    memset(C->buffer, 0, BUFFER_SIZE);
 
     // start at pos 0
-    state->pos = 0;
+    C->pos = 0;
 
     // read initial LOOKAHEAD_LENGTH bytes (or up to EOF) into buffer
     // store lookahead end position
-    state->end_pos = fread(state->buffer, 1, LOOKAHEAD_LENGTH, input);
-    debug_print("Initial read %zu bytes\n", state->end_pos);
+    C->end_pos = fread(C->buffer, 1, LOOKAHEAD_LENGTH, input);
+    debug_print("Initial read %zu bytes\n", C->end_pos);
 
     off_t tokens = 0; // track tokens (literal or offset-length ref) outputted
     uint8_t bitflags = 0; // flags for 8 tokens at a time
@@ -193,24 +193,24 @@ void compress(lzss_state* state, FILE* input, FILE* output)
     // main loop: iterate through current position in input
     // lookahead buffer end maintains ahead of pos, until it stops increasing
     // at pos == end_pos, where end_pos stopped due to EOF
-    while(state->pos < state->end_pos)
+    while(C->pos < C->end_pos)
     {
-        debug_print("POS %zu\n", state->pos);
+        debug_print("POS %zu\n", C->pos);
 
-        uint8_t cur_c = state->buffer[state->pos % BUFFER_SIZE]; // current char
+        uint8_t cur_c = C->buffer[C->pos % BUFFER_SIZE]; // current char
 
         // reference pair (offset, length)
         uint32_t hash = 0;
         size_t offset, length = 0;
 
         // Search if not too close to the end
-        if (state->pos + KEY_LENGTH < state->end_pos)
+        if (C->pos + KEY_LENGTH < C->end_pos)
         {
-            hash = knuth_hash(pack3(state));
-            offset = dict_search(state, hash, &length);
+            hash = knuth_hash(pack3(C));
+            offset = dict_search(C, hash, &length);
 
             debug_print("Search pos %zu, found offset %zu length %zu\n", 
-            state->pos, offset, length);
+            C->pos, offset, length);
         }
         else 
         {
@@ -249,8 +249,8 @@ void compress(lzss_state* state, FILE* input, FILE* output)
                 if (c == EOF)
                     break;
                 
-                state->buffer[state->end_pos % BUFFER_SIZE] = c;
-                ++(state->end_pos);
+                C->buffer[C->end_pos % BUFFER_SIZE] = c;
+                ++(C->end_pos);
             }
 
             debug_print("Bytes read %zu\n", bytes_read);
@@ -265,8 +265,8 @@ void compress(lzss_state* state, FILE* input, FILE* output)
 
             if (c != EOF)
             {
-                state->buffer[state->end_pos % BUFFER_SIZE] = c;
-                state->end_pos++;
+                C->buffer[C->end_pos % BUFFER_SIZE] = c;
+                C->end_pos++;
             }
 
             // write literal to output buffer
@@ -279,19 +279,19 @@ void compress(lzss_state* state, FILE* input, FILE* output)
         // insert new keys up to but not including length bytes ahead
         for (size_t i = 0; i < length; ++i)
             {
-                if (state->pos + KEY_LENGTH < state->end_pos)
+                if (C->pos + KEY_LENGTH < C->end_pos)
                 {
-                    hash = knuth_hash(pack3(state));
-                    dict_insert(state, hash);
+                    hash = knuth_hash(pack3(C));
+                    dict_insert(C, hash);
                 }
-                state->pos++;
+                C->pos++;
             }
     
         ++tokens;
 
         // finally, if reached 8 tokens or end
         // output bitflags and output buffer tokens
-        if ((tokens % 8 == 0) || (state->pos == state->end_pos))
+        if ((tokens % 8 == 0) || (C->pos == C->end_pos))
         {
             put_byte(bitflags, output);
             debug_print("output bitflags %08b\n", bitflags);
@@ -316,16 +316,16 @@ void compress(lzss_state* state, FILE* input, FILE* output)
 // Decompress input stream and write to output stream.
 // Advances both streams's file positions.
 // Returns status code for success or failure.
-lzss_status decompress(lzss_state* state, FILE* input, FILE* output)
+lzss_status decompress(decompressor* D, FILE* input, FILE* output)
 {
     // reset buffer to initial zero state
-    memset(state->buffer, 0, BUFFER_SIZE);
+    memset(D->buffer, 0, BUFFER_SIZE);
 
-    state->pos = 0;
+    D->pos = 0;
 
     while (1)
     {
-        debug_print("POS %zu\n", state->pos);
+        debug_print("POS %zu\n", D->pos);
 
         // read bitflags byte
         int c = get_byte(input);
@@ -372,14 +372,14 @@ lzss_status decompress(lzss_state* state, FILE* input, FILE* output)
 
                 debug_print("Read offset %zu length %d\n", offset, length);
 
-                uint64_t back = state->pos - offset;
-                uint64_t front = state->pos;
+                uint64_t back = D->pos - offset;
+                uint64_t front = D->pos;
 
                 // push and output one byte at a time
-                while ((off_t)front < state->pos + length)
+                while ((off_t)front < D->pos + length)
                 {
-                    uint8_t b = state->buffer[back % BUFFER_SIZE];
-                    state->buffer[front % BUFFER_SIZE] = b;
+                    uint8_t b = D->buffer[back % BUFFER_SIZE];
+                    D->buffer[front % BUFFER_SIZE] = b;
                     put_byte(b, output);
                     debug_print("output %c\n", b);
                     
@@ -388,7 +388,7 @@ lzss_status decompress(lzss_state* state, FILE* input, FILE* output)
                 }
 
                 // move pos forward
-                state->pos = front;
+                D->pos = front;
             }
             else // literal byte (or EOF)
             {
@@ -407,8 +407,8 @@ lzss_status decompress(lzss_state* state, FILE* input, FILE* output)
                 put_byte(c, output);
 
                 // push to buffer
-                state->buffer[state->pos % BUFFER_SIZE] = c;
-                state->pos++;
+                D->buffer[D->pos % BUFFER_SIZE] = c;
+                D->pos++;
             }
         }
     }

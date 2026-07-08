@@ -1,9 +1,8 @@
 #include "lzss.h"
 
-// use same state as compression
-static lzss_state global_state;
+static decompressor global_decompressor;
 
 int main()
 {
-    decompress(&global_state, stdin, stdout);
+    decompress(&global_decompressor, stdin, stdout);
 }

@@ -1,9 +1,9 @@
 #include "lzss.h"
 
 // global state with static storage duration and internal linkage
-static lzss_state global_state;
+static compressor global_compressor;
 
 int main()
 {
-    compress(&global_state, stdin, stdout);
+    compress(&global_compressor, stdin, stdout);
 }

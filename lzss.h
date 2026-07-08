@@ -41,6 +41,7 @@ typedef enum
     STATUS_FAIL,
 } lzss_status;
 
+// Compressor (state)
 typedef struct
 {
     // Main circular buffer, storing search window and lookahead window
@@ -59,21 +60,27 @@ typedef struct
     // tracking known end position (byte after last known byte)
     off_t   end_pos;
 
-} lzss_state;
+} compressor;
 
+// Decompressor (less state than Compressor)
+typedef struct
+{
+    uint8_t buffer[BUFFER_SIZE];
+    off_t pos;
+} decompressor;
 
 // helper functions
 uint32_t knuth_hash(uint32_t key);
 
 
 // dict functions
-uint32_t pack3(const lzss_state* state);
-void dict_reset(lzss_state* state);
-void dict_insert(lzss_state* state, uint32_t hash);
-size_t dict_search(lzss_state* state, uint32_t hash, size_t* best_length);
+uint32_t pack3(const compressor* C);
+void dict_reset(compressor* C);
+void dict_insert(compressor* C, uint32_t hash);
+size_t dict_search(compressor* C, uint32_t hash, size_t* best_length);
 
 // Main functions
 
-void compress(lzss_state* state, FILE* input, FILE* output);
-lzss_status decompress(lzss_state* state, FILE* input, FILE* output);
+void compress(compressor* C, FILE* input, FILE* output);
+lzss_status decompress(decompressor* D, FILE* input, FILE* output);
 
