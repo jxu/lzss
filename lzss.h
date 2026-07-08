@@ -69,8 +69,8 @@ uint32_t knuth_hash(uint32_t key);
 // dict functions
 uint32_t pack3(const lzss_state* state);
 void dict_reset(lzss_state* state);
-void dict_insert(lzss_state* state, uint32_t hash, off_t pos);
-size_t dict_search(lzss_state* state, uint32_t hash, off_t pos, off_t end_pos, size_t* best_length);
+void dict_insert(lzss_state* state, uint32_t hash);
+size_t dict_search(lzss_state* state, uint32_t hash, size_t* best_length);
 
 // Main functions
 

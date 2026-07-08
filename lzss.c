@@ -22,34 +22,33 @@ uint32_t knuth_hash(uint32_t key)
     return (2654435769u * key) >> (32 - DICT_BITS);
 }
 
-// insert key-pos pair into the front of the chain
-// use Knuth key hash directly instead of key
-void dict_insert(lzss_state* state, uint32_t hash, off_t pos)
+// at current pos, insert key-pos pair into the front of the chain
+// use key hash directly instead of key
+void dict_insert(lzss_state* state, uint32_t hash)
 {
     uint32_t bucket = hash; 
     assert(bucket < BUFFER_SIZE);
 
     off_t old_front = state->search_dict[bucket];
     // strictly decreasing or end of chain
-    assert(old_front == NULL_POS || old_front < pos);
-    state->search_dict[bucket] = pos;
-    state->prev_pos[pos % BUFFER_SIZE] = old_front;
+    assert(old_front == NULL_POS || old_front < state->pos);
+    state->search_dict[bucket] = state->pos;
+    state->prev_pos[state->pos % BUFFER_SIZE] = old_front;
 
     debug_print("insert hash_table[%d] = %ld, next[%ld] = %ld\n",
-        bucket, pos, pos % BUFFER_SIZE, old_front);
+        bucket, state->pos, state->pos % BUFFER_SIZE, old_front);
 }
 
-// for buffer at position pos, with hash of key at this pos
-// file ends at end_pos, exclusive
-// returns best offset, also returns through pointer best length
+// search by hash at current pos
+// returns best offset (0 if none), also returns through pointer best length
 // the returned match is checked against buffer to ensure it's an actual match
-size_t dict_search(lzss_state* state, uint32_t hash, off_t pos, off_t end_pos, size_t* best_length)
+size_t dict_search(lzss_state* state, uint32_t hash, size_t* best_length)
 {
     size_t best_offset = 0;
     *best_length = 0;
 
     // if too close to the end, abort search
-    if (end_pos - pos < KEY_LENGTH)
+    if (state->end_pos - state->pos < KEY_LENGTH)
     {
         return 0;
     }
@@ -69,10 +68,10 @@ size_t dict_search(lzss_state* state, uint32_t hash, off_t pos, off_t end_pos, s
 
         // all pos values not mod buffer
         // unsigned for optimized modulo
-        size_t offset = pos - searchpos;
+        size_t offset = state->pos - searchpos;
         size_t length = 0;
-        uint64_t back = pos - offset;
-        uint64_t fwd = pos;
+        uint64_t back = state->pos - offset;
+        uint64_t fwd = state->pos;
 
         // break when chain decreasing position falls out of window
         if (offset > WINDOW_LENGTH)
@@ -89,7 +88,7 @@ size_t dict_search(lzss_state* state, uint32_t hash, off_t pos, off_t end_pos, s
 
         // check won't overflow buffer or exceed end pos
         if (length + VECTOR_BYTES < LOOKAHEAD_LENGTH &&
-            fwd + VECTOR_BYTES < (uint64_t)end_pos &&
+            fwd + VECTOR_BYTES < (uint64_t)state->end_pos &&
             (back % BUFFER_SIZE) + VECTOR_BYTES < BUFFER_SIZE &&
             (fwd % BUFFER_SIZE) + VECTOR_BYTES < BUFFER_SIZE
         )
@@ -127,7 +126,7 @@ size_t dict_search(lzss_state* state, uint32_t hash, off_t pos, off_t end_pos, s
         {
             // naively match
             // LZ77 trick: in matching, length can be greater than offset
-            for (; length < LOOKAHEAD_LENGTH && fwd < (uint64_t)end_pos; ++length)
+            for (; length < LOOKAHEAD_LENGTH && fwd < (uint64_t)state->end_pos; ++length)
             {
                 if (state->buffer[back % BUFFER_SIZE] != state->buffer[fwd % BUFFER_SIZE])
                     break;
@@ -208,7 +207,7 @@ void compress(lzss_state* state, FILE* input, FILE* output)
         if (state->pos + KEY_LENGTH < state->end_pos)
         {
             hash = knuth_hash(pack3(state));
-            offset = dict_search(state, hash, state->pos, state->end_pos, &length);
+            offset = dict_search(state, hash, &length);
 
             debug_print("Search pos %zu, found offset %zu length %zu\n", 
             state->pos, offset, length);
@@ -283,7 +282,7 @@ void compress(lzss_state* state, FILE* input, FILE* output)
                 if (state->pos + KEY_LENGTH < state->end_pos)
                 {
                     hash = knuth_hash(pack3(state));
-                    dict_insert(state, hash, state->pos);
+                    dict_insert(state, hash);
                 }
                 state->pos++;
             }

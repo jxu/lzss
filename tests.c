@@ -32,30 +32,39 @@ void test_dict(void)
     
     // try to search empty dict, should not return anything (offset = 0)
     // dict_search API is kinda awkward because it references global buffer
-    offset = dict_search(state, aaa_hash, 1, 8, &length);
+    state->pos = 1;
+    state->end_pos = 8;
+    offset = dict_search(state, aaa_hash, &length);
     assert(offset == 0);
     assert(length == 0);
 
     // insert "aaa" at pos 0
-    dict_insert(state, aaa_hash, 0);
+    state->pos = 0;
+    dict_insert(state, aaa_hash);
 
     // search for hash starting at pos 1
     // with end_pos = 5, the best match would be "aaaa" with offset 1, length 4
-    offset = dict_search(state, aaa_hash, 1, 5, &length);
+    state->pos = 1;
+    state->end_pos = 5;
+    offset = dict_search(state, aaa_hash, &length);
     assert(offset == 1);
     assert(length == 4);
 
     // with end_pos = 4, best match is offset 1, length 3
-    offset = dict_search(state, aaa_hash, 1, 4, &length);
+    state->end_pos = 4;
+    offset = dict_search(state, aaa_hash, &length);
     assert(offset == 1);
     assert(length == 3);
 
     // insert "aaa" at pos 1, same hash
-    dict_insert(state, aaa_hash, 1);
+    state->pos = 1;
+    dict_insert(state, aaa_hash);
 
     // search for hash starting at pos 2, up to end pos 6
     // both pos 0 and pos 1 match "aaaa", pos 1 is nearer
-    offset = dict_search(state, aaa_hash, 2, 6, &length);
+    state->pos = 2;
+    state->end_pos = 6;
+    offset = dict_search(state, aaa_hash, &length);
     assert(offset == 1);
     assert(length == 4);
 
