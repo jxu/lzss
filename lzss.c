@@ -39,18 +39,18 @@ void dict_insert(compressor* C, uint32_t hash)
         bucket, C->pos, C->pos % BUFFER_SIZE, old_front);
 }
 
-// search by hash at current pos
-// returns best offset (0 if none), also returns through pointer best length
-// the returned match is checked against buffer to ensure it's an actual match
-size_t dict_search(compressor* C, uint32_t hash, size_t* best_length)
+// Search by hash at compressor's current pos.
+// Returns best offset (0 if none) and best length
+// The returned match is checked against buffer to ensure it's an actual match
+match dict_search(compressor* C, uint32_t hash)
 {
     size_t best_offset = 0;
-    *best_length = 0;
+    size_t best_length = 0;
 
     // if too close to the end, abort search
     if (C->end_pos - C->pos < KEY_LENGTH)
     {
-        return 0;
+        return (match) {0, 0};
     }
 
     uint32_t bucket = hash;
@@ -138,9 +138,9 @@ size_t dict_search(compressor* C, uint32_t hash, size_t* best_length)
 
         debug_print("Match %zu %zu\n", offset, length);
 
-        if (length > *best_length)
+        if (length > best_length)
         {
-            *best_length = length;
+            best_length = length;
             best_offset = offset;
         }
 
@@ -152,9 +152,9 @@ size_t dict_search(compressor* C, uint32_t hash, size_t* best_length)
 
     // If best offset returned is 0, ensure it's not a nonzero length match
     if (best_offset == 0)
-        assert(*best_length == 0);
+        assert(best_length == 0);
 
-    return best_offset;
+    return (match) {best_offset, best_length};
 }
 
 // Reset dictionary tables
@@ -207,7 +207,9 @@ void compress(compressor* C, FILE* input, FILE* output)
         if (C->pos + KEY_LENGTH < C->end_pos)
         {
             hash = knuth_hash(pack3(C));
-            offset = dict_search(C, hash, &length);
+            match res = dict_search(C, hash);
+            offset = res.offset;
+            length = res.length;
 
             debug_print("Search pos %zu, found offset %zu length %zu\n", 
             C->pos, offset, length);

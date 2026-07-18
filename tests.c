@@ -25,7 +25,7 @@ void test_dict(void)
     uint8_t data[] = "aaaaaa";
     memcpy(state->buffer, data, sizeof data);
 
-    size_t length, offset;
+    match res;
 
     // hash of "aaa"
     uint32_t aaa_hash = knuth_hash(pack3(state));
@@ -35,9 +35,9 @@ void test_dict(void)
     // dict_search API is kinda awkward because it references global buffer
     state->pos = 1;
     state->end_pos = 8;
-    offset = dict_search(state, aaa_hash, &length);
-    assert(offset == 0);
-    assert(length == 0);
+    res = dict_search(state, aaa_hash);
+    assert(res.offset == 0);
+    assert(res.length == 0);
 
     // insert "aaa" at pos 0
     state->pos = 0;
@@ -47,15 +47,15 @@ void test_dict(void)
     // with end_pos = 5, the best match would be "aaaa" with offset 1, length 4
     state->pos = 1;
     state->end_pos = 5;
-    offset = dict_search(state, aaa_hash, &length);
-    assert(offset == 1);
-    assert(length == 4);
+    res = dict_search(state, aaa_hash);
+    assert(res.offset == 1);
+    assert(res.length == 4);
 
     // with end_pos = 4, best match is offset 1, length 3
     state->end_pos = 4;
-    offset = dict_search(state, aaa_hash, &length);
-    assert(offset == 1);
-    assert(length == 3);
+    res = dict_search(state, aaa_hash);
+    assert(res.offset == 1);
+    assert(res.length == 3);
 
     // insert "aaa" at pos 1, same hash
     state->pos = 1;
@@ -65,9 +65,9 @@ void test_dict(void)
     // both pos 0 and pos 1 match "aaaa", pos 1 is nearer
     state->pos = 2;
     state->end_pos = 6;
-    offset = dict_search(state, aaa_hash, &length);
-    assert(offset == 1);
-    assert(length == 4);
+    res = dict_search(state, aaa_hash);
+    assert(res.offset == 1);
+    assert(res.length == 4);
 
 
     printf("Dict tests passed\n");

@@ -72,12 +72,19 @@ typedef struct
 // helper functions
 uint32_t knuth_hash(uint32_t key);
 
+// package together match pair for returning
+typedef struct
+{
+    size_t offset;
+    size_t length;
+} match;
+
 
 // dict functions
 uint32_t pack3(const compressor* C);
 void dict_reset(compressor* C);
 void dict_insert(compressor* C, uint32_t hash);
-size_t dict_search(compressor* C, uint32_t hash, size_t* best_length);
+match dict_search(compressor* C, uint32_t hash);
 
 // Main functions
 
