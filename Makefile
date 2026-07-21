@@ -1,22 +1,33 @@
-CC = gcc
-CFLAGS = -O3 -g -Wall -Wextra -march=haswell
+CC = clang
+CFLAGS = -O3 -g -Wall -Wextra -march=haswell -Isrc
 
-release: executable
+SRC = src
+BUILD = build
 
-# because not put in a separate dir, may require make -B to force
+# maybe change later
+COMMON = $(BUILD)/lzss.o
+
+PROGRAMS = compress decompress
+TESTS = $(BUILD)/tests
+
+all: $(PROGRAMS) $(TESTS)
+
 debug: CFLAGS += -DDEBUG
-debug: executable
+debug: all
 
-executable: compress decompress tests
+%: $(SRC)/%.c $(COMMON)
+	$(CC) $(CFLAGS) $^ -o $@
 
-lzss.o: lzss.c lzss.h buffered_io.h
+$(TESTS): tests/tests.c $(COMMON) | $(BUILD)
+	$(CC) $(CFLAGS) $^ -o $@
+
+$(BUILD)/%.o: $(SRC)/%.c | $(BUILD)
 	$(CC) $(CFLAGS) -c $< -o $@
 
-compress: lzss.o compress.c 
-	$(CC) $(CFLAGS) $^ -o $@
+$(BUILD):
+	mkdir -p $@
 
-decompress: lzss.o decompress.c 
-	$(CC) $(CFLAGS) $^ -o $@
+clean:
+	rm -rf $(BUILD) $(PROGRAMS) $(TESTS)
 
-tests: lzss.o tests.c 
-	$(CC) $(CFLAGS) $^ -o $@
+.PHONY: all debug clean
