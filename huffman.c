@@ -11,14 +11,12 @@
 
 // use extra symbol values for nodes
 // should be >= 2 * NUM_SYMBOLS - 1
-#define MAX_EXTRA_SYMBOLS 64
+#define NUM_EXTRA_SYMBOLS 64
 
 typedef struct 
 {
     uint16_t symbol;
-
     uint16_t weight;
-
 } node;
 
 // package together basic items of a queue
@@ -30,47 +28,86 @@ typedef struct
 } node_queue;
 
 
+size_t queue_length(const node_queue* q)
+{
+    assert(q->start <= q->end);
+    return q->end - q->start;
+}
+
+void queue_push(node_queue* q, const node n)
+{
+    assert(q->start <= q->end);
+    q->data[q->end++] = n;
+}
+
+node queue_pop(node_queue* q)
+{
+    assert(q->start < q->end);
+    return q->data[q->start++];
+}
+
+node queue_peek(const node_queue* q)
+{
+    assert(q->start < q->end);
+    return q->data[q->start];
+}
+
+// Pop the min node across two queues
+node pop_queues(node_queue* q1, node_queue* q2)
+{
+    // Assume at least one queue is non-empty
+    assert(queue_length(q1) > 0 || queue_length(q2) > 0);
+
+    if (queue_length(q1) == 0)
+        return queue_pop(q2);
+    
+    if (queue_length(q2) == 0)
+        return queue_pop(q1);
+    
+    // here, both queues are non-empty
+    node n1 = queue_peek(q1);
+    node n2 = queue_peek(q2);
+
+    if (n1.weight < n2.weight) 
+        return queue_pop(q1); 
+    else
+        return queue_pop(q2);
+}
 
 // van Leeuwen (1976) two-queue algorithm
 // https://webspace.science.uu.nl/~leeuw112/huffman.pdf
-// takes as input leaf_queue array indexed [0, leaf_end)
+// takes as input leaf_queue array indexed [0, leaf_queue.end)
 // outputs tree in terms of parents array
-void build_huffman(const node leaf_queue[], const size_t leaf_end, uint16_t parent[])
+void build_huffman(node_queue leaf_queue, uint16_t parent[])
 {
     // TODO: assert leaf_queue is in order
 
     // don't handle no leaves at all case
-    assert(leaf_end > 0); 
+    assert(leaf_queue.start == 0 && leaf_queue.end > 0); 
 
     // if only a single leaf in queue, return nothing changed
 
-    if (leaf_end == 1) 
+    if (leaf_queue.end == 1) 
         return;
 
-
-
-    size_t leaf_start = 0;
 
     // track index to produce new nodes
     int next_node_index = NUM_SYMBOLS;
 
-    node internal_queue[MAX_EXTRA_SYMBOLS];
+    node internal_data[NUM_EXTRA_SYMBOLS];
 
-    // indices tracking queue head and tail
-    size_t internal_start = 0;
-    size_t internal_end = 0; // end is index to element AFTER last
+    node_queue internal_queue =
+    {
+        .data = internal_data, 
+        .start = 0,
+        .end = 0,
+    };
 
 
     // loop until leaf queue is empty and internal queue has only 1 node
-    while (!(leaf_start == leaf_end && internal_end - internal_start == 1))
+    while (!(leaf_queue.start == leaf_queue.end 
+             && internal_queue.end - internal_queue.start == 1))
     {
-        assert (leaf_start <= leaf_end && internal_start <= internal_end);
-
-        printf("Leaf queue start %d end %d\n", leaf_start, leaf_end);
-
-
-
-        printf("Internal queue start %d end %d\n", internal_start, internal_end);
 
         // TODO: use an extract_min twice instead of trying to do
         // both simultaneously here
@@ -78,89 +115,34 @@ void build_huffman(const node leaf_queue[], const size_t leaf_end, uint16_t pare
         // determine alpha and beta, the two smallest nodes
         // from the two queues, based on what is available
 
-        int least_weight = UINT16_MAX;
-
-        bool is_alpha_leaf;
-        bool is_beta_leaf;
-        node alpha;
-        node beta;
-
-        // case 1: both from leaf queue
-        if (leaf_end - leaf_start >= 2)
-        {
-            node a = leaf_queue[leaf_start];
-            node b = leaf_queue[leaf_start + 1];
-            int new_weight = a.weight + b.weight;
-
-            if (new_weight < least_weight)
-            {
-                least_weight = new_weight;
-                alpha = a;
-                beta = b;
-                is_alpha_leaf = true;
-                is_beta_leaf = true;
-            }
-        }
-
-        // case 2: one from each queue
-        if (leaf_end - leaf_start >= 1 && internal_end - internal_start >= 1)
-        {
-
-        }
-
-        // case 3: both from internal queue
-        if (internal_end - internal_start >= 2)
-        {
-
-        }
-
-        // create new internal node gamma
-        node gamma = (node) 
-        {
-            .symbol = next_node_index,
-            .weight = least_weight,
-        };
-
-        next_node_index++;
-
-        // push to internal queue
-        internal_queue[internal_end++] = gamma;
-
-        // set alpha and beta parent as gamma
-        parent[alpha.symbol] = gamma.symbol;
-
-
-        // remove alpha and beta from their source queues
-        if (is_alpha_leaf)
-        {
-            leaf_start++;
-        } else {
-            internal_start++;
-        }
-
-        if (is_beta_leaf)
-        {
-            leaf_start++;
-        } else {
-            internal_start++;
-        }
-        
-
-
-
+        // these should not fail here
 
     }
-
-
 
 }
 
 int main()
 {
-    node leaf_queue[NUM_SYMBOLS];
+    // very basic test of queue functions
 
+    node data[NUM_EXTRA_SYMBOLS];
 
+    // zero-init start and end
+    node_queue q = {.data = data};
 
-    uint16_t leaf_start = 0;
-    uint16_t leaf_end = 5;
+    assert(queue_length(&q) == 0);
+
+    node n1 = {0, 1};
+    queue_push(&q, n1);
+
+    assert(queue_length(&q) == 1);
+
+    // test peeking twice
+    n1 = queue_peek(&q);
+    n1 = queue_peek(&q);
+    assert(n1.symbol == 0);
+
+    n1 = queue_pop(&q);
+    assert(queue_length(&q) == 0);
+    assert(n1.symbol == 0);
 }
