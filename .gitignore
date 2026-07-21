@@ -10,3 +10,5 @@ output*
 *.lzss
 *.so
 perf*
+compile_commands.json
+.cache/
