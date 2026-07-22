@@ -1,5 +1,5 @@
 CC = clang
-CFLAGS = -O3 -g -Wall -Wextra -march=haswell -Isrc
+CFLAGS = -O3 -g -Wall -Wextra -march=haswell -Isrc -DUNITY_OUTPUT_COLOR
 
 SRC = src
 BUILD = build
