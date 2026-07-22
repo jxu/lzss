@@ -7,7 +7,7 @@ BUILD = build
 # maybe change later
 COMMON = $(BUILD)/lzss.o
 
-PROGRAMS = compress decompress
+PROGRAMS = $(BUILD)/compress $(BUILD)/decompress
 TESTS = $(BUILD)/tests
 
 all: $(PROGRAMS) $(TESTS)
@@ -15,7 +15,10 @@ all: $(PROGRAMS) $(TESTS)
 debug: CFLAGS += -DDEBUG
 debug: all
 
-%: $(SRC)/%.c $(COMMON)
+$(BUILD)/compress: src/compress.c $(COMMON) | $(BUILD)
+	$(CC) $(CFLAGS) $^ -o $@
+
+$(BUILD)/decompress: src/decompress.c $(COMMON) | $(BUILD)
 	$(CC) $(CFLAGS) $^ -o $@
 
 $(TESTS): tests/tests.c $(COMMON) | $(BUILD)
