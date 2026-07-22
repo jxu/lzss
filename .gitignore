@@ -1,12 +1,11 @@
 *.log
 *.o
 *.new
-compress
-decompress
-tests
+
 
 seeds*
 output*
+build/
 *.lzss
 *.so
 perf*
