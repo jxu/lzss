@@ -1,17 +1,21 @@
 // Tests for compress/decompress functions
-// Uses asserts for checking, so don't define NDEBUG
+// TODO: clean up all of this later
 
-#include <assert.h>
 #include <string.h>
-#include <stdio.h>
-#include <stdint.h>
 #include <stdbool.h>
 #include "lzss.h"
+#include "unity.h"
+#include "unity_internals.h"
 
 #define TMPBUF_SIZE 4096
 
 static compressor global_compressor;
 static decompressor global_decompressor;
+
+// Unity functions
+void setUp() {}
+void tearDown() {}
+
 
 void test_dict(void)
 {
@@ -35,8 +39,8 @@ void test_dict(void)
     state->pos = 1;
     state->end_pos = 8;
     res = dict_search(state, aaa_hash);
-    assert(res.offset == 0);
-    assert(res.length == 0);
+    TEST_ASSERT(res.offset == 0);
+    TEST_ASSERT(res.length == 0);
 
     // insert "aaa" at pos 0
     state->pos = 0;
@@ -47,14 +51,14 @@ void test_dict(void)
     state->pos = 1;
     state->end_pos = 5;
     res = dict_search(state, aaa_hash);
-    assert(res.offset == 1);
-    assert(res.length == 4);
+    TEST_ASSERT(res.offset == 1);
+    TEST_ASSERT(res.length == 4);
 
     // with end_pos = 4, best match is offset 1, length 3
     state->end_pos = 4;
     res = dict_search(state, aaa_hash);
-    assert(res.offset == 1);
-    assert(res.length == 3);
+    TEST_ASSERT(res.offset == 1);
+    TEST_ASSERT(res.length == 3);
 
     // insert "aaa" at pos 1, same hash
     state->pos = 1;
@@ -65,11 +69,8 @@ void test_dict(void)
     state->pos = 2;
     state->end_pos = 6;
     res = dict_search(state, aaa_hash);
-    assert(res.offset == 1);
-    assert(res.length == 4);
-
-
-    printf("Dict tests passed\n");
+    TEST_ASSERT(res.offset == 1);
+    TEST_ASSERT(res.length == 4);
 }
 
 // Test if orig data gets compressed to expect data
@@ -90,8 +91,8 @@ void test_exact_helper(uint8_t orig_data[], size_t orig_size,
     fflush(actual_file); // force write
 
     // check compressed data is correctly sized and matches
-    assert((size_t)ftell(actual_file) == expect_size);
-    assert(memcmp(actual_buf, expect_data, expect_size) == 0);
+    TEST_ASSERT((size_t)ftell(actual_file) == expect_size);
+    TEST_ASSERT(memcmp(actual_buf, expect_data, expect_size) == 0);
 
     fclose(orig_file);
     fclose(actual_file);
@@ -104,8 +105,8 @@ void test_exact_helper(uint8_t orig_data[], size_t orig_size,
     fflush(decomp_file);
 
     // checks decompressed is correctly sized and matches
-    assert((size_t)ftell(decomp_file) == orig_size);
-    assert(memcmp(decomp_buf, orig_data, orig_size) == 0);
+    TEST_ASSERT((size_t)ftell(decomp_file) == orig_size);
+    TEST_ASSERT(memcmp(decomp_buf, orig_data, orig_size) == 0);
 
     fclose(actual_file);
     fclose(decomp_file);
@@ -151,13 +152,12 @@ void test_exact_sam(void)
     test_exact_helper(orig, sizeof(orig), expect, sizeof(expect));
 }
 
-void test_exact(void)
+void run_exact_tests(void)
 {
-    test_exact_nul8();
-    test_exact_nul1();
-    test_exact_literals();
-    test_exact_sam();
-    printf("Compress tests passed\n");
+    RUN_TEST(test_exact_nul8);
+    RUN_TEST(test_exact_nul1);
+    RUN_TEST(test_exact_literals);
+    RUN_TEST(test_exact_sam);
 }
 
 // idiomatic compare streams: read chunks into buffer and compare
@@ -196,7 +196,7 @@ void test_roundtrip_helper(FILE* infile)
     decompress(&global_decompressor, compressed, decompressed);
     rewind(decompressed);
 
-    assert(streams_equal(infile, decompressed));
+    TEST_ASSERT(streams_equal(infile, decompressed));
 }
 
 void test_roundtrip_file(const char* filename)
@@ -212,14 +212,16 @@ void test_roundtrip(void)
 {
     test_roundtrip_file("samples/sam.txt");
     test_roundtrip_file("samples/kjv.txt"); // several MB
-
-    printf("Roundtrip tests passed\n");
 }
 
 
-int main()
+int main(void)
 {
-    test_dict();
-    test_exact();
-    test_roundtrip();
+    UNITY_BEGIN();
+
+    RUN_TEST(test_dict);
+    run_exact_tests();
+    RUN_TEST(test_roundtrip);
+
+    return UNITY_END();
 }

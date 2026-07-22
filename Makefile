@@ -21,7 +21,7 @@ $(BUILD)/compress: src/compress.c $(COMMON) | $(BUILD)
 $(BUILD)/decompress: src/decompress.c $(COMMON) | $(BUILD)
 	$(CC) $(CFLAGS) $^ -o $@
 
-$(TESTS): tests/tests.c $(COMMON) | $(BUILD)
+$(TESTS): tests/tests.c tests/unity.c $(COMMON) | $(BUILD)
 	$(CC) $(CFLAGS) $^ -o $@
 
 $(BUILD)/%.o: $(SRC)/%.c | $(BUILD)
